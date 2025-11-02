@@ -26,6 +26,29 @@ const Dashboard = () => {
     navigate("/");
   };
 
+  // **START NEW CODE: Helper function to generate initials**
+  const getInitials = (username: string | undefined): string => {
+    if (!username) return "JD"; // Default initials if user is null/undefined
+
+    const parts = username.trim().split(/\s+/);
+    
+    // Use the first letter of the first word
+    const firstInitial = parts[0].charAt(0).toUpperCase();
+
+    // Use the first letter of the second word, if available
+    if (parts.length > 1) {
+      const secondInitial = parts[1].charAt(0).toUpperCase();
+      return `${firstInitial}${secondInitial}`;
+    }
+
+    // If only one word, just return its initial (or 'JD' for two letters if preferred)
+    return firstInitial;
+  };
+
+  const userInitials = getInitials(user?.username);
+  // **END NEW CODE**
+
+
   return (
     <div className="min-h-screen bg-gradient-hero">
       {/* Navbar */}
@@ -59,9 +82,11 @@ const Dashboard = () => {
               <div className="flex items-center gap-6">
                 <Avatar className="w-24 h-24 border-4 border-primary/20 shadow-glow">
                   <AvatarImage src="" />
+                  {/* **MODIFIED CODE: Dynamic Initials** */}
                   <AvatarFallback className="bg-gradient-primary text-white text-3xl font-bold">
-                    JD
+                    {userInitials}
                   </AvatarFallback>
+                  {/* **END MODIFIED CODE** */}
                 </Avatar>
                 <div className="flex-1">
                   <h2 className="text-3xl font-black mb-1 tracking-tight">Welcome back, {user?.username || "User"}!</h2>
