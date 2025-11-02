@@ -1,7 +1,6 @@
 {
   "name": "echo-connect-backend",
   "version": "1.0.0",
-  "type": "module",
   "description": "Backend server for EchoChat",
   "main": "index.js",
   "scripts": {
@@ -9,8 +8,10 @@
     "dev": "node --watch index.js"
   },
   "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "cors": "^2.8.5"
+    "socket.io": "^4.7.5",
+    "uuid": "^9.0.1"
   }
 }
-

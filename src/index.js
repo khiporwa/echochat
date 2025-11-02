@@ -1,14 +1,13 @@
 const express = require("express");
 const cors = require("cors");
-const http = require("http");
-const { Server } = require("socket.io");
 const cookieParser = require("cookie-parser");
 
 const app = express();
-const server = http.createServer(app);
 const port = 3001;
-const setupSocket = require("./socket");
+
+// Import routes
 const authRoutes = require("./routes/auth");
+const premiumRoutes = require("./routes/premium");
 
 app.use(
   cors({
@@ -20,16 +19,8 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
+app.use("/api/premium", premiumRoutes);
 
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:8080",
-    methods: ["GET", "POST"],
-  },
-});
-
-setupSocket(io);
-
-server.listen(port, () => {
+app.listen(port, () => {
   console.log(`Backend server listening at http://localhost:${port}`);
 });

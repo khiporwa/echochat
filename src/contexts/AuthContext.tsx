@@ -5,6 +5,7 @@ interface User {
   username: string;
   email: string;
   isPremium: boolean;
+  gender: string;
 }
 
 interface AuthContextType {
@@ -12,7 +13,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (username: string, email: string, password: string) => Promise<void>;
+  signup: (username: string, email: string, password: string, gender: string) => Promise<void>;
   logout: () => Promise<void>;
   upgradeToPremium: (plan: string) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -91,13 +92,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("echochat_token", data.token);
   };
 
-  const signup = async (username: string, email: string, password: string) => {
+  const signup = async (username: string, email: string, password: string, gender: string) => {
     const response = await fetch(`${API_URL}/auth/signup`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ username, email, password }),
+      body: JSON.stringify({ username, email, password, gender }),
     });
 
     if (!response.ok) {
@@ -177,4 +178,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
