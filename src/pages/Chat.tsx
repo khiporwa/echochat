@@ -14,7 +14,7 @@ import {
   X,
   Send,
   Loader2,
-  User,
+  User, // Added User icon for 'Waiting' state
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Filter, Crown } from "lucide-react";
-import { io, Socket } from "socket.io-client";
+import { io, Socket } from "socket.io-client"; // NEW: Import Socket.io client
 
 type GenderFilter = "male" | "female" | "other" | null;
 
@@ -38,38 +38,45 @@ interface Opponent {
   username: string;
 }
 
-// RESTORED: Stable HTTP URL for Socket.io
-const SOCKET_URL = "http://192.168.29.173:3001"; 
+const SOCKET_URL = "http://localhost:3001"; // Must match backend port
 
 const Chat = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatMessage, setChatMessage] = useState("");
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [localStreamVisible, setLocalStreamVisible] = useState<MediaStream | null>(null); 
   const [genderFilter, setGenderFilter] = useState<GenderFilter>(null);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   
+  // NEW MATCHING STATE
   const [isSearching, setIsSearching] = useState(true);
   const [opponent, setOpponent] = useState<Opponent | null>(null);
-
   const videoRef = useRef<HTMLVideoElement>(null);
+
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
   
+  // CRITICAL FIX: Use useRef to maintain the media stream and socket connection
+  const activeStreamRef = useRef<MediaStream | null>(null);
   const socketRef = useRef<Socket | null>(null);
+
 
   // --- MEDIA STREAM LOGIC ---
 
   const stopMediaStream = () => {
-    if (localStream) {
-      localStream.getTracks().forEach((track) => track.stop());
-      setLocalStream(null);
+    const stream = activeStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        track.stop();
+      });
+      activeStreamRef.current = null;
+      setLocalStreamVisible(null);
     }
   };
 
-  // EFFECT: Handle Camera Access and Component Cleanup
+  // EFFECT: Handle Camera Access
   useEffect(() => {
     const requestCamera = async () => {
       try {
@@ -77,7 +84,9 @@ const Chat = () => {
           video: true,
           audio: true,
         });
-        setLocalStream(stream);
+        
+        activeStreamRef.current = stream;
+        setLocalStreamVisible(stream);
 
       } catch (error) {
         console.error("Error accessing camera:", error);
@@ -91,39 +100,39 @@ const Chat = () => {
 
     requestCamera();
 
-    // Cleanup function that stops stream and disconnects socket on unmount
+    // CRITICAL: Cleanup function that ALWAYS runs on unmount
     return () => {
       stopMediaStream();
       socketRef.current?.disconnect();
     };
   }, [toast]);
 
-  // Handle video element update for local stream
+  // Handle video element update when stream becomes available
   useEffect(() => {
-    if (localStream && videoRef.current) {
-      videoRef.current.srcObject = localStream;
+    if (localStreamVisible && videoRef.current) {
+      videoRef.current.srcObject = localStreamVisible;
     }
-  }, [localStream]);
+  }, [localStreamVisible]);
 
-  // Handle video/audio track toggles
+  // Handle video/audio track toggles (using activeStreamRef for reliability)
   useEffect(() => {
-    const videoTrack = localStream?.getVideoTracks()[0];
+    const videoTrack = activeStreamRef.current?.getVideoTracks()[0];
     if (videoTrack) {
       videoTrack.enabled = !isVideoOff;
     }
-    const audioTrack = localStream?.getAudioTracks()[0];
+    const audioTrack = activeStreamRef.current?.getAudioTracks()[0];
     if (audioTrack) {
       audioTrack.enabled = !isMuted;
     }
-  }, [isVideoOff, isMuted, localStream]);
+  }, [isVideoOff, isMuted]);
 
   // --- SOCKET MATCHING LOGIC ---
 
   const startMatching = (isNext = false) => {
     if (!user?.id) return;
-    
-    setOpponent(null);
+
     setIsSearching(true);
+    setOpponent(null);
 
     if (socketRef.current?.connected) {
       if (isNext) {
@@ -143,17 +152,8 @@ const Chat = () => {
   useEffect(() => {
     if (!user?.id) return;
     
-    // **CRITICAL FIX:** Disconnect any previous socket connection before creating a new one
-    if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-    }
-    
-    // Connect to the specific IP and port
     const socket = io(SOCKET_URL, {
-        query: { userId: user.id },
-        withCredentials: true,
-        reconnectionAttempts: 5, 
+        query: { userId: user.id } // Pass user ID for potential future use
     });
     socketRef.current = socket;
 
@@ -168,7 +168,7 @@ const Chat = () => {
       setIsSearching(false);
     });
 
-    // Event 1: Match found from backend
+    // Event: Match found from backend
     socket.on('matched', (matchData: { opponentId: string; opponentUsername: string }) => {
       setOpponent({
         id: matchData.opponentId,
@@ -180,23 +180,39 @@ const Chat = () => {
         title: "Match Found!",
         description: `You are now connected with ${matchData.opponentUsername}.`,
       });
+
+      // NOTE: In a real app, this is where WebRTC offer/answer process begins
     });
-    
-    // Event 2: No match found immediately, user is placed in queue
+
+    // Event: No match found immediately, user is placed in queue
     socket.on('waiting', () => {
       setOpponent(null);
       setIsSearching(true);
+      // We keep the toast simple here since startMatching already shows a toast
     });
     
+    // Event: User is busy (shouldn't happen on fresh page load)
+    socket.on('busy', () => {
+        setIsSearching(false);
+        toast({
+            title: "Already Connected",
+            description: "You are already marked as being in an active session.",
+        });
+    });
+
+
     // Cleanup socket connection on unmount
     return () => {
       socket.disconnect();
     };
-  }, [user?.id, toast]);
+  }, [user?.id, toast]); // Reconnect if user logs in/out
 
   // Handler for 'Next' button
   const handleNext = () => {
+    // 1. Tell socket server to look for next match
     startMatching(true);
+    
+    // 2. Clear current opponent information and chat
     setOpponent(null);
     setShowChat(false);
   };
@@ -217,6 +233,7 @@ const Chat = () => {
 
   const handleSendMessage = () => {
     if (chatMessage.trim()) {
+      // In a real application, emit message via socket here
       setChatMessage("");
     }
   };
@@ -232,7 +249,7 @@ const Chat = () => {
       description: `Now matching with ${value === "all" ? "everyone" : value} users`,
     });
   };
-  
+
   const showConnectingLoader = isSearching && !opponent;
 
   return (
@@ -259,39 +276,42 @@ const Chat = () => {
       <div className="flex-1 relative bg-muted">
         {/* Partner Video (Main) */}
         <div className="absolute inset-0 bg-gradient-hero flex items-center justify-center">
-            
-            {showConnectingLoader ? (
-                // Connecting Loader
-                <div className="text-center">
-                    <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
-                    <p className="text-xl font-semibold text-foreground">Connecting...</p>
-                    <p className="text-muted-foreground">Finding someone for you to chat with</p>
-                </div>
-            ) : opponent ? (
-                 // Opponent Found: Display Name Placeholder
-                 <div className="text-center">
-                    <div className="w-32 h-32 rounded-full bg-gradient-primary flex items-center justify-center mx-auto mb-4">
-                        <span className="text-4xl font-bold text-white">
-                            {opponent.username.charAt(0).toUpperCase()}
-                        </span>
-                    </div>
-                    <p className="text-2xl font-bold mb-1 tracking-tight text-foreground">{opponent.username}</p>
-                    <p className="text-muted-foreground">Match connected! Video stream placeholder.</p>
-                 </div>
-            ) : (
-                // Waiting State (Before match is found)
-                <div className="text-center">
-                    <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-xl font-semibold text-foreground">Waiting for connection...</p>
-                    <p className="text-muted-foreground">Click Next if stuck</p>
-                </div>
-            )}
+          {showConnectingLoader ? (
+            <div className="text-center">
+              <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
+              <p className="text-xl font-semibold text-foreground">Connecting...</p>
+              <p className="text-muted-foreground">Finding someone for you to chat with</p>
+            </div>
+          ) : opponent ? (
+            <div className="text-center">
+              <div className="w-32 h-32 rounded-full bg-gradient-primary flex items-center justify-center mx-auto mb-4">
+                <span className="text-4xl font-bold text-white">
+                  {opponent.username.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <p className="text-2xl font-bold mb-1 tracking-tight text-foreground">{opponent.username}</p>
+              <div className="flex gap-2 justify-center">
+                <Badge variant="secondary" className="bg-primary/10 text-primary border-2 border-primary/30 font-semibold">
+                  🎨 Art
+                </Badge>
+                <Badge variant="secondary" className="bg-accent/10 text-accent border-2 border-accent/30 font-semibold">
+                  🎮 Gaming
+                </Badge>
+              </div>
+            </div>
+          ) : (
+             <div className="text-center">
+                <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-xl font-semibold text-foreground">Waiting for connection...</p>
+                <p className="text-muted-foreground">Click Next if stuck</p>
+            </div>
+          )}
         </div>
 
         {/* Own Video (Picture-in-Picture) */}
         <Card className="absolute top-4 right-4 w-64 h-48 border-border/50 overflow-hidden shadow-card">
           <div className="w-full h-full bg-muted flex items-center justify-center relative">
-            {isVideoOff || !localStream ? (
+            {isVideoOff || !localStreamVisible ? (
               <div className="text-center">
                 <VideoOff className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">Camera off</p>
@@ -432,7 +452,7 @@ const Chat = () => {
 
       {/* Premium Upgrade Dialog */}
       <PremiumUpgradeDialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog} />
-    </div >
+    </div>
   );
 };
 

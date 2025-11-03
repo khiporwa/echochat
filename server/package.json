@@ -1,6 +1,7 @@
 {
   "name": "echo-connect-backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "Backend server for EchoChat",
   "main": "index.js",
   "scripts": {

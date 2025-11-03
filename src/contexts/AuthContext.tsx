@@ -20,7 +20,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// RESTORE: HTTP and hardcoded IP for stable network access
+// Stable HTTP IP for network access
 const API_URL = "http://192.168.29.173:3001/api"; 
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -135,7 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error("Not authenticated");
     }
 
-    const response = await fetch(`${API_URL}/user/upgrade`, {
+    const response = await fetch(`${API_URL}/auth/upgrade`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
