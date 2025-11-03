@@ -5,7 +5,7 @@ import { dirname, join } from 'path';
 import fs from 'fs';
 import { Server } from 'socket.io';
 import http from 'http';
-import { v4 as uuidv4 } from 'uuid'; // Requires npm install uuid
+import { v4 as uuidv4 } from 'uuid';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -25,6 +25,8 @@ const io = new Server(httpServer, {
 let waitingPool = [];
 const userStatus = new Map();
 const userSocketMap = new Map();
+// NEW STATE: Map to track active two-way matches { userId1: userId2, userId2: userId1 }
+const matchRooms = new Map();
 
 // --- Helper Functions ---
 
@@ -52,6 +54,36 @@ const generateToken = () => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
+/**
+ * Helper function to handle a user leaving or disconnecting from a chat.
+ * This is the critical fix.
+ * @param {string} userId - The ID of the user who is leaving.
+ */
+const leaveChat = (userId) => {
+    const partnerId = matchRooms.get(userId);
+
+    if (partnerId) {
+        // 1. Notify the partner (e.g., Rajat) that the user (e.g., Dev) left.
+        const partnerSocketId = userSocketMap.get(partnerId);
+        if (partnerSocketId) {
+            io.to(partnerSocketId).emit('chat:partnerLeft');
+            console.log(`Notified partner ${partnerId} that ${userId} left.`);
+        }
+
+        // 2. Clear statuses and room entry for both users
+        userStatus.delete(userId);
+        userStatus.delete(partnerId);
+        matchRooms.delete(userId);
+        matchRooms.delete(partnerId);
+
+        console.log(`Chat ended between ${userId} and ${partnerId}.`);
+    } else {
+        // If they were not in a match, ensure they are removed from the queue and have no status
+        waitingPool = waitingPool.filter(id => id !== userId);
+        userStatus.delete(userId);
+    }
+};
+
 // --- Matchmaking Logic ---
 
 const findMatch = (userId, socketId) => {
@@ -68,6 +100,10 @@ const findMatch = (userId, socketId) => {
     if (matchedId1 && matchedId2) {
       userStatus.set(matchedId1, 'BUSY');
       userStatus.set(matchedId2, 'BUSY');
+      
+      // NEW: Establish the two-way match in the matchRooms map
+      matchRooms.set(matchedId1, matchedId2);
+      matchRooms.set(matchedId2, matchedId1);
 
       const data = readData();
       const user1 = data.users.find(u => u.id === matchedId1);
@@ -76,7 +112,7 @@ const findMatch = (userId, socketId) => {
       io.to(userSocketMap.get(matchedId1)).emit('matched', { opponentId: matchedId2, opponentUsername: user2?.username || 'Stranger' });
       io.to(userSocketMap.get(matchedId2)).emit('matched', { opponentId: matchedId1, opponentUsername: user1?.username || 'Stranger' });
 
-      console.log(`Matched ${matchedId1} and ${matchedId2}`);
+      console.log(`Match found: ${user1?.username || matchedId1} and ${user2?.username || matchedId2}`);
       return true;
     }
   }
@@ -97,25 +133,33 @@ io.on('connection', (socket) => {
   }
 
   socket.on('requestMatch', (currentUserId) => {
-    if (userStatus.get(currentUserId) !== 'BUSY') {
-      userSocketMap.set(currentUserId, socket.id);
-      findMatch(currentUserId, socket.id);
+    if (userStatus.get(currentUserId) === 'BUSY') {
+        // If already busy, client side should handle disconnect, or it can be a quick re-connection
+        socket.emit('busy', { message: 'Already in a call.' });
     } else {
-      socket.emit('busy', { message: 'Already in a call.' });
+        userSocketMap.set(currentUserId, socket.id);
+        findMatch(currentUserId, socket.id);
     }
   });
 
   socket.on('nextMatch', (currentUserId) => {
-    console.log(`${currentUserId} clicked next`);
+    console.log(`User ${currentUserId} clicked next`);
 
-    waitingPool = waitingPool.filter(id => id !== currentUserId);
-    userStatus.delete(currentUserId);
-
-    userStatus.set(currentUserId, 'WAITING');
+    // FIX: Notify the current partner that this user is leaving.
+    leaveChat(currentUserId);
+    
+    // Now start finding a new match for the current user.
+    userStatus.set(currentUserId, 'WAITING'); // Explicitly set status
     userSocketMap.set(currentUserId, socket.id);
     findMatch(currentUserId, socket.id);
   });
   
+  // NEW: Handler for when a user explicitly clicks a "Leave" button on the client
+  socket.on('chat:leave', (currentUserId) => {
+      console.log(`User ${currentUserId} explicitly left the chat.`);
+      leaveChat(currentUserId);
+  });
+
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
     
@@ -128,8 +172,10 @@ io.on('connection', (socket) => {
     }
     
     if (userIdToRemove) {
-      waitingPool = waitingPool.filter(id => id !== userIdToRemove);
-      userStatus.delete(userIdToRemove);
+      // FIX: If the disconnected user was in a match, notify their partner.
+      leaveChat(userIdToRemove);
+      
+      // Clean up the user's socket ID mapping
       userSocketMap.delete(userIdToRemove);
     }
   });

@@ -136,6 +136,7 @@ const Chat = () => {
 
     if (socketRef.current?.connected) {
       if (isNext) {
+        // Updated server logic handles clearing previous chat for partner
         socketRef.current.emit('nextMatch', user.id);
       } else {
         socketRef.current.emit('requestMatch', user.id);
@@ -184,6 +185,19 @@ const Chat = () => {
       // NOTE: In a real app, this is where WebRTC offer/answer process begins
     });
 
+    // NEW EVENT: Partner left the chat (Fixes the issue where Rajat stays connected)
+    socket.on('chat:partnerLeft', () => {
+      console.log('Partner left the chat');
+      setOpponent(null);
+      setIsSearching(false); 
+      
+      toast({
+        title: "Partner disconnected",
+        description: "Your partner left the chat. Click 'Next' to find a new one.",
+        variant: "destructive",
+      });
+    });
+
     // Event: No match found immediately, user is placed in queue
     socket.on('waiting', () => {
       setOpponent(null);
@@ -219,6 +233,11 @@ const Chat = () => {
 
   // Handler for 'X' button
   const handleExitChat = () => {
+    // FIX: Emit the 'chat:leave' event with user ID before disconnecting
+    if (socketRef.current && user?.id) {
+        socketRef.current.emit("chat:leave", user.id);
+    }
+    
     stopMediaStream();
     socketRef.current?.disconnect();
     navigate("/dashboard");
