@@ -28,7 +28,7 @@ const VideoChat = () => {
       newSocket.emit("user:online", {
         id: user.id,
         username: user.username,
-        gender: user.gender, // Assuming user object has gender
+        // gender: user.gender, // Assuming user object has gender
       });
     });
 
