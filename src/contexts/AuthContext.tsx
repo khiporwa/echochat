@@ -20,7 +20,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = "http://localhost:3001/api";
+// FIX: Changed to your local IP for mobile access.
+// IMPORTANT: You might need to update this IP (192.168.29.173) if your computer's IP changes.
+const API_URL = "http://192.168.29.173:3001/api"; 
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -134,7 +136,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error("Not authenticated");
     }
 
-    const response = await fetch(`${API_URL}/auth/upgrade`, {
+    const response = await fetch(`${API_URL}/user/upgrade`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
