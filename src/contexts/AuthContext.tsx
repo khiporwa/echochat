@@ -20,8 +20,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// FIX: Changed to your local IP for mobile access.
-// IMPORTANT: You might need to update this IP (192.168.29.173) if your computer's IP changes.
+// RESTORE: HTTP and hardcoded IP for stable network access
 const API_URL = "http://192.168.29.173:3001/api"; 
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {

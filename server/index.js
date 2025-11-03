@@ -5,7 +5,7 @@ import { dirname, join } from 'path';
 import fs from 'fs';
 import { Server } from 'socket.io';
 import http from 'http';
-import { v4 as uuidv4 } from 'uuid'; 
+import { v4 as uuidv4 } from 'uuid';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -21,10 +21,10 @@ const io = new Server(httpServer, {
   },
 });
 
-// Matchmaking Pool and Statuses
-let waitingPool = [];
-const userStatus = new Map();
-const userSocketMap = new Map();
+// Matchmaking Pool and Statuses (Fast, in-memory real-time tracking)
+let waitingPool = []; // Stores userId
+const userStatus = new Map(); // Maps userId to 'WAITING' | 'BUSY'
+const userSocketMap = new Map(); // Maps userId to socketId
 
 // --- Helper Functions ---
 
@@ -52,40 +52,7 @@ const generateToken = () => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
-// --- Matchmaking Logic ---
-
-const findMatch = (userId, socketId) => {
-  if (!waitingPool.includes(userId)) {
-    waitingPool.push(userId);
-    userStatus.set(userId, 'WAITING');
-    userSocketMap.set(userId, socketId);
-  }
-
-  if (waitingPool.length >= 2) {
-    const matchedId1 = waitingPool.shift();
-    const matchedId2 = waitingPool.shift();
-
-    if (matchedId1 && matchedId2) {
-      userStatus.set(matchedId1, 'BUSY');
-      userStatus.set(matchedId2, 'BUSY');
-
-      const data = readData();
-      const user1 = data.users.find(u => u.id === matchedId1);
-      const user2 = data.users.find(u => u.id === matchedId2);
-
-      io.to(userSocketMap.get(matchedId1)).emit('matched', { opponentId: matchedId2, opponentUsername: user2?.username || 'Stranger' });
-      io.to(userSocketMap.get(matchedId2)).emit('matched', { opponentId: matchedId1, opponentUsername: user1?.username || 'Stranger' });
-
-      console.log(`Matched ${matchedId1} and ${matchedId2}`);
-      return true;
-    }
-  }
-  
-  io.to(socketId).emit('waiting');
-  return false;
-};
-
-// --- Socket.io Connection Handler ---
+// --- Socket.io Connection Handler (Final attempt to force pool entry) ---
 
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
@@ -95,24 +62,50 @@ io.on('connection', (socket) => {
       userSocketMap.set(userId, socket.id);
   }
 
+  // CRITICAL Matchmaking Logic embedded directly in the event handler
   socket.on('requestMatch', (currentUserId) => {
-    if (userStatus.get(currentUserId) !== 'BUSY') {
-      userSocketMap.set(currentUserId, socket.id);
-      findMatch(currentUserId, socket.id);
-    } else {
-      socket.emit('busy', { message: 'Already in a call.' });
+    
+    // 1. Force clear old status and socket
+    waitingPool = waitingPool.filter(id => id !== currentUserId);
+    userStatus.delete(currentUserId); 
+    userSocketMap.set(currentUserId, socket.id); 
+    
+    // 2. Add user to pool
+    waitingPool.push(currentUserId);
+    userStatus.set(currentUserId, 'WAITING');
+    console.log(`User ${currentUserId} ENTERED POOL. Current size: ${waitingPool.length}`);
+
+
+    // 3. Immediately check for match
+    if (waitingPool.length >= 2) {
+      const matchedId1 = waitingPool.shift();
+      const matchedId2 = waitingPool.shift();
+
+      if (matchedId1 && matchedId2) {
+        userStatus.set(matchedId1, 'BUSY');
+        userStatus.set(matchedId2, 'BUSY');
+
+        const data = readData();
+        const user1 = data.users.find(u => u.id === matchedId1);
+        const user2 = data.users.find(u => u.id === matchedId2);
+
+        // Notify clients of the match
+        io.to(userSocketMap.get(matchedId1)).emit('matched', { opponentId: matchedId2, opponentUsername: user2?.username || 'Stranger' });
+        io.to(userSocketMap.get(matchedId2)).emit('matched', { opponentId: matchedId1, opponentUsername: user1?.username || 'Stranger' });
+
+        console.log(`SUCCESS: Matched ${user1?.username} and ${user2?.username}`);
+        return; // Match completed
+      }
     }
+    
+    // If no match was found, notify waiting status
+    socket.emit('waiting');
   });
 
   socket.on('nextMatch', (currentUserId) => {
-    console.log(`${currentUserId} clicked next`);
-
-    waitingPool = waitingPool.filter(id => id !== currentUserId);
-    userStatus.delete(currentUserId);
-
-    userStatus.set(currentUserId, 'WAITING');
-    userSocketMap.set(currentUserId, socket.id);
-    findMatch(currentUserId, socket.id);
+    console.log(`${currentUserId} clicked next, re-triggering requestMatch logic.`);
+    // Re-trigger the primary matching logic
+    socket.emit('requestMatch', currentUserId);
   });
   
   socket.on('disconnect', () => {
@@ -136,7 +129,6 @@ io.on('connection', (socket) => {
 
 // --- Express REST API Middleware and Routes ---
 
-// FIX: Explicitly allow all origins and credentials for cross-network access
 app.use(cors({ origin: '*', credentials: true })); 
 app.use(express.json());
 

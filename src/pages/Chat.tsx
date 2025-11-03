@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/select";
 import { Filter, Crown } from "lucide-react";
 import { io, Socket } from "socket.io-client";
-import SimplePeer from 'simple-peer'; // Requires npm install simple-peer
 
 type GenderFilter = "male" | "female" | "other" | null;
 
@@ -39,101 +38,34 @@ interface Opponent {
   username: string;
 }
 
-// NOTE: Ensure this URL uses HTTPS if that's your current setup!
-// This URL must match the IP and port of your backend server (3001).
-const SOCKET_URL = "https://192.168.29.173:3001"; 
+// RESTORED: Stable HTTP URL for Socket.io
+const SOCKET_URL = "http://192.168.29.173:3001"; 
 
 const Chat = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatMessage, setChatMessage] = useState("");
-  const [localStreamVisible, setLocalStreamVisible] = useState<MediaStream | null>(null); 
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [genderFilter, setGenderFilter] = useState<GenderFilter>(null);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   
   const [isSearching, setIsSearching] = useState(true);
   const [opponent, setOpponent] = useState<Opponent | null>(null);
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
   
-  const activeStreamRef = useRef<MediaStream | null>(null);
   const socketRef = useRef<Socket | null>(null);
-  const peerRef = useRef<SimplePeer.Instance | null>(null);
 
   // --- MEDIA STREAM LOGIC ---
 
   const stopMediaStream = () => {
-    // Stop local stream
-    const stream = activeStreamRef.current;
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      activeStreamRef.current = null;
-      setLocalStreamVisible(null);
-    }
-    // Destroy peer connection
-    if (peerRef.current) {
-        peerRef.current.destroy();
-        peerRef.current = null;
-    }
-    // Clear remote stream state
-    setRemoteStream(null);
-  };
-
-  // Function to start the WebRTC connection
-  const initiatePeerConnection = (initiator: boolean, stream: MediaStream, opponentId: string) => {
-    // 1. Destroy any existing peer first
-    if (peerRef.current) {
-        peerRef.current.destroy();
-        peerRef.current = null;
-    }
-
-    // 2. Create the new peer instance
-    const peer = new SimplePeer({
-        initiator: initiator,
-        trickle: false,
-        stream: stream,
-    });
-
-    peerRef.current = peer;
-
-    // 3. Signaling: When the peer generates connection data (SDP offer/answer)
-    peer.on('signal', data => {
-        // Send this signal data to the opponent via the Socket.io server
-        socketRef.current?.emit('signal', {
-            to: opponentId,
-            signal: data
-        });
-    });
-
-    // 4. Remote Stream: When the opponent sends their stream, get it here
-    peer.on('stream', remoteStream => {
-        setRemoteStream(remoteStream); // Store stream to render
-    });
-    
-    // 5. Cleanup on peer close/error
-    peer.on('close', () => {
-        console.log('Peer connection closed.');
-        handleNext(); // Automatically search for a new match
-    });
-    
-    // 6. Handle peer errors
-    peer.on('error', (err) => {
-        console.error('Peer error:', err);
-        handleNext(); // Automatically search for a new match on error
-    });
-  };
-
-  // Function to handle signal data received from the opponent
-  const handleSignalFromOpponent = (signal: SimplePeer.SignalData) => {
-    if (peerRef.current) {
-        peerRef.current.signal(signal);
+    if (localStream) {
+      localStream.getTracks().forEach((track) => track.stop());
+      setLocalStream(null);
     }
   };
 
@@ -145,9 +77,7 @@ const Chat = () => {
           video: true,
           audio: true,
         });
-        
-        activeStreamRef.current = stream;
-        setLocalStreamVisible(stream);
+        setLocalStream(stream);
 
       } catch (error) {
         console.error("Error accessing camera:", error);
@@ -161,7 +91,7 @@ const Chat = () => {
 
     requestCamera();
 
-    // CRITICAL: Cleanup function that ALWAYS runs on unmount
+    // Cleanup function that stops stream and disconnects socket on unmount
     return () => {
       stopMediaStream();
       socketRef.current?.disconnect();
@@ -170,50 +100,29 @@ const Chat = () => {
 
   // Handle video element update for local stream
   useEffect(() => {
-    if (localStreamVisible && videoRef.current) {
-      videoRef.current.srcObject = localStreamVisible;
+    if (localStream && videoRef.current) {
+      videoRef.current.srcObject = localStream;
     }
-  }, [localStreamVisible]);
-
-  // Handle video element update for remote stream
-  useEffect(() => {
-    if (remoteStream && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
-
+  }, [localStream]);
 
   // Handle video/audio track toggles
   useEffect(() => {
-    const videoTrack = activeStreamRef.current?.getVideoTracks()[0];
+    const videoTrack = localStream?.getVideoTracks()[0];
     if (videoTrack) {
       videoTrack.enabled = !isVideoOff;
     }
-    const audioTrack = activeStreamRef.current?.getAudioTracks()[0];
+    const audioTrack = localStream?.getAudioTracks()[0];
     if (audioTrack) {
       audioTrack.enabled = !isMuted;
     }
-  }, [isVideoOff, isMuted]);
-
-  // Simulate connection loading screen duration
-  useEffect(() => {
-    // This timeout is largely obsolete now, as the searching is driven by the socket.
-    // Kept here for potential initial UI purposes if needed.
-    // setTimeout(() => setIsConnecting(false), 2000); 
-  }, []);
+  }, [isVideoOff, isMuted, localStream]);
 
   // --- SOCKET MATCHING LOGIC ---
 
   const startMatching = (isNext = false) => {
-    if (!user?.id || !activeStreamRef.current) return;
+    if (!user?.id) return;
     
     setOpponent(null);
-    setRemoteStream(null);
-    if (peerRef.current) {
-        peerRef.current.destroy();
-        peerRef.current = null;
-    }
-
     setIsSearching(true);
 
     if (socketRef.current?.connected) {
@@ -234,11 +143,17 @@ const Chat = () => {
   useEffect(() => {
     if (!user?.id) return;
     
+    // **CRITICAL FIX:** Disconnect any previous socket connection before creating a new one
+    if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+    }
+    
     // Connect to the specific IP and port
     const socket = io(SOCKET_URL, {
         query: { userId: user.id },
         withCredentials: true,
-        reconnectionAttempts: 5, // Attempt reconnection if connection is lost
+        reconnectionAttempts: 5, 
     });
     socketRef.current = socket;
 
@@ -250,12 +165,7 @@ const Chat = () => {
     socket.on('disconnect', () => {
       console.log('Disconnected from socket server');
       setOpponent(null);
-      setRemoteStream(null);
       setIsSearching(false);
-      if (peerRef.current) {
-          peerRef.current.destroy();
-          peerRef.current = null;
-      }
     });
 
     // Event 1: Match found from backend
@@ -268,33 +178,13 @@ const Chat = () => {
       
       toast({
         title: "Match Found!",
-        description: `You are now connected with ${matchData.opponentUsername}. Starting video...`,
+        description: `You are now connected with ${matchData.opponentUsername}.`,
       });
-
-      // **WebRTC Connection Setup**
-      const initiator = user.id > matchData.opponentId; 
-      const stream = activeStreamRef.current;
-      
-      if (stream) {
-          initiatePeerConnection(initiator, stream, matchData.opponentId);
-      }
     });
     
-    // Event 2: Receive signaling data from opponent
-    socket.on('signal', (data: { from: string, signal: SimplePeer.SignalData }) => {
-        // Only process signal if it's from the current opponent
-        if (opponent?.id && data.from === opponent.id) {
-            handleSignalFromOpponent(data.signal);
-        } else if (data.from === user.id) {
-            // Self-signaling logic can be added here if necessary
-        }
-    });
-
-
-    // Event 3: No match found immediately, user is placed in queue
+    // Event 2: No match found immediately, user is placed in queue
     socket.on('waiting', () => {
       setOpponent(null);
-      setRemoteStream(null);
       setIsSearching(true);
     });
     
@@ -302,18 +192,12 @@ const Chat = () => {
     return () => {
       socket.disconnect();
     };
-  }, [user?.id, toast, opponent]);
+  }, [user?.id, toast]);
 
   // Handler for 'Next' button
   const handleNext = () => {
-    if (peerRef.current) {
-        peerRef.current.destroy(); 
-        peerRef.current = null;
-    }
     startMatching(true);
-    
     setOpponent(null);
-    setRemoteStream(null);
     setShowChat(false);
   };
 
@@ -324,7 +208,6 @@ const Chat = () => {
     navigate("/dashboard");
   };
 
-  // FIX: Restore missing handler
   const handleReport = () => {
     toast({
       title: "Report submitted",
@@ -350,7 +233,7 @@ const Chat = () => {
     });
   };
   
-  const showConnectingLoader = isSearching && !remoteStream;
+  const showConnectingLoader = isSearching && !opponent;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -374,18 +257,10 @@ const Chat = () => {
 
       {/* Video Area */}
       <div className="flex-1 relative bg-muted">
-        {/* Partner Video (MAIN WINDOW) */}
+        {/* Partner Video (Main) */}
         <div className="absolute inset-0 bg-gradient-hero flex items-center justify-center">
             
-            {remoteStream ? (
-                // Display Opponent's Video (Large Scale)
-                <video 
-                    ref={remoteVideoRef} 
-                    autoPlay 
-                    playsInline 
-                    className="w-full h-full object-cover" 
-                />
-            ) : showConnectingLoader ? (
+            {showConnectingLoader ? (
                 // Connecting Loader
                 <div className="text-center">
                     <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
@@ -393,7 +268,7 @@ const Chat = () => {
                     <p className="text-muted-foreground">Finding someone for you to chat with</p>
                 </div>
             ) : opponent ? (
-                 // Fallback: Match found, but video stream hasn't arrived
+                 // Opponent Found: Display Name Placeholder
                  <div className="text-center">
                     <div className="w-32 h-32 rounded-full bg-gradient-primary flex items-center justify-center mx-auto mb-4">
                         <span className="text-4xl font-bold text-white">
@@ -401,7 +276,7 @@ const Chat = () => {
                         </span>
                     </div>
                     <p className="text-2xl font-bold mb-1 tracking-tight text-foreground">{opponent.username}</p>
-                    <p className="text-muted-foreground">Waiting for opponent's video...</p>
+                    <p className="text-muted-foreground">Match connected! Video stream placeholder.</p>
                  </div>
             ) : (
                 // Waiting State (Before match is found)
@@ -416,7 +291,7 @@ const Chat = () => {
         {/* Own Video (Picture-in-Picture) */}
         <Card className="absolute top-4 right-4 w-64 h-48 border-border/50 overflow-hidden shadow-card">
           <div className="w-full h-full bg-muted flex items-center justify-center relative">
-            {isVideoOff || !localStreamVisible ? (
+            {isVideoOff || !localStream ? (
               <div className="text-center">
                 <VideoOff className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">Camera off</p>
@@ -427,7 +302,7 @@ const Chat = () => {
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover transform scale-x-[-1]" // Added mirror effect
+                className="w-full h-full object-cover"
               />
             )}
           </div>
@@ -557,7 +432,7 @@ const Chat = () => {
 
       {/* Premium Upgrade Dialog */}
       <PremiumUpgradeDialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog} />
-    </div>
+    </div >
   );
 };
 
