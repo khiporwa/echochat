@@ -1,0 +1,22 @@
+:{$PORT} {
+    # Serve static frontend assets from the Vite build directory
+    root * /app/dist
+    file_server
+
+    # Reverse proxy API traffic to the backend server (which listens internally on 3001)
+    reverse_proxy /api/* localhost:3001
+
+    # Reverse proxy WebSocket traffic to the backend server
+    reverse_proxy /socket.io/* localhost:3001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-Proto {scheme}
+        # Necessary for WebSockets
+        transport http {
+            keepalive_timeout 30s
+        }
+    }
+    
+    # Fallback for Single Page Application (SPA) routing
+    try_files {path} /index.html
+}
