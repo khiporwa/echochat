@@ -56,14 +56,13 @@ const generateToken = () => {
 
 /**
  * Helper function to handle a user leaving or disconnecting from a chat.
- * This is the critical fix.
  * @param {string} userId - The ID of the user who is leaving.
  */
 const leaveChat = (userId) => {
     const partnerId = matchRooms.get(userId);
 
     if (partnerId) {
-        // 1. Notify the partner (e.g., Rajat) that the user (e.g., Dev) left.
+        // 1. Notify the partner that the user left.
         const partnerSocketId = userSocketMap.get(partnerId);
         if (partnerSocketId) {
             io.to(partnerSocketId).emit('chat:partnerLeft');
@@ -297,7 +296,8 @@ app.post('/api/auth/logout', authenticate, (req, res) => {
   const data = readData();
   // @ts-ignore
   delete data.sessions[req.token];
-  writeData(data);
+  // This line is the critical part for deleting the session from data.json
+  writeData(data); 
   res.status(204).send();
 });
 

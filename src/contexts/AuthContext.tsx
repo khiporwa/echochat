@@ -39,6 +39,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  // 👇 FIX: Effect to handle browser closure/page unload synchronously
+  useEffect(() => {
+    const handleUnload = () => {
+      const currentToken = localStorage.getItem("echochat_token");
+      if (currentToken) {
+        // Use synchronous XMLHttpRequest (XHR) on unload. 
+        // This is the only reliable way to send a logout request with headers
+        // that completes before the browser tab is fully closed.
+        const xhr = new XMLHttpRequest();
+        // Set the request to synchronous ('false' argument)
+        xhr.open("POST", `${API_URL}/auth/logout`, false); 
+        xhr.setRequestHeader("Authorization", `Bearer ${currentToken}`);
+        xhr.send();
+        
+        // Clean up localStorage immediately
+        localStorage.removeItem("echochat_token");
+      }
+    };
+
+    // Attach listener to the window unload event
+    window.addEventListener("beforeunload", handleUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleUnload);
+    };
+  }, []);
+
   const refreshUser = async (authToken?: string) => {
     const authTokenToUse = authToken || token;
     if (!authTokenToUse) {
