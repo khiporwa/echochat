@@ -3,7 +3,7 @@ import { io, Socket } from "socket.io-client";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "./ui/button";
 
-const SOCKET_URL = "http://localhost:3001";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "/";
 
 const VideoChat = () => {
   const { user } = useAuth();

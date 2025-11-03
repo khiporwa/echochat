@@ -21,7 +21,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Stable HTTP IP for network access
-const API_URL = import.meta.env.VITE_API_URL || "http://192.168.29.173:3001/api"; 
+const API_URL = import.meta.env.VITE_API_URL || "/api"; 
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
