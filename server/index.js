@@ -65,7 +65,8 @@ const leaveChat = (userId) => {
         // 1. Notify the partner that the user left.
         const partnerSocketId = userSocketMap.get(partnerId);
         if (partnerSocketId) {
-            io.to(partnerSocketId).emit('chat:partnerLeft');
+            // FIX: Corrected event name to match frontend listener
+            io.to(partnerSocketId).emit('chat:partnerLeft'); 
             console.log(`Notified partner ${partnerId} that ${userId} left.`);
         }
 
@@ -108,6 +109,7 @@ const findMatch = (userId, socketId) => {
       const user1 = data.users.find(u => u.id === matchedId1);
       const user2 = data.users.find(u => u.id === matchedId2);
 
+      // FIX: Corrected event name to 'matched' to align with frontend listener
       io.to(userSocketMap.get(matchedId1)).emit('matched', { opponentId: matchedId2, opponentUsername: user2?.username || 'Stranger' });
       io.to(userSocketMap.get(matchedId2)).emit('matched', { opponentId: matchedId1, opponentUsername: user1?.username || 'Stranger' });
 
@@ -125,7 +127,7 @@ const findMatch = (userId, socketId) => {
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  // FIX APPLIED: Changed TypeScript assertion to standard JavaScript casting
+  // FIX APPLIED: Read userId from query params for user-socket mapping
   const userId = String(socket.handshake.query.userId); 
   if (userId && userId !== 'undefined') {
       userSocketMap.set(userId, socket.id);
@@ -133,7 +135,6 @@ io.on('connection', (socket) => {
 
   socket.on('requestMatch', (currentUserId) => {
     if (userStatus.get(currentUserId) === 'BUSY') {
-        // If already busy, client side should handle disconnect, or it can be a quick re-connection
         socket.emit('busy', { message: 'Already in a call.' });
     } else {
         userSocketMap.set(currentUserId, socket.id);
@@ -144,11 +145,9 @@ io.on('connection', (socket) => {
   socket.on('nextMatch', (currentUserId) => {
     console.log(`User ${currentUserId} clicked next`);
 
-    // FIX: Notify the current partner that this user is leaving.
     leaveChat(currentUserId);
     
-    // Now start finding a new match for the current user.
-    userStatus.set(currentUserId, 'WAITING'); // Explicitly set status
+    userStatus.set(currentUserId, 'WAITING'); 
     userSocketMap.set(currentUserId, socket.id);
     findMatch(currentUserId, socket.id);
   });
@@ -158,6 +157,26 @@ io.on('connection', (socket) => {
       console.log(`User ${currentUserId} explicitly left the chat.`);
       leaveChat(currentUserId);
   });
+
+  // START FIX: WebRTC Signaling Relay
+  const relaySignal = (eventName, { senderId, payload }) => {
+      const partnerId = matchRooms.get(senderId);
+      if (partnerId) {
+          const partnerSocketId = userSocketMap.get(partnerId);
+          if (partnerSocketId) {
+              // Relay the signal to the partner's socket
+              io.to(partnerSocketId).emit(eventName, { senderId, payload });
+          } else {
+              console.warn(`Partner socket not found for user ${partnerId}`);
+          }
+      }
+  };
+
+  // Listen for the three critical WebRTC signaling events
+  socket.on('webrtc:offer', (data) => relaySignal('webrtc:offer', data));
+  socket.on('webrtc:answer', (data) => relaySignal('webrtc:answer', data));
+  socket.on('webrtc:ice_candidate', (data) => relaySignal('webrtc:ice_candidate', data));
+  // END FIX
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
@@ -171,10 +190,7 @@ io.on('connection', (socket) => {
     }
     
     if (userIdToRemove) {
-      // FIX: If the disconnected user was in a match, notify their partner.
       leaveChat(userIdToRemove);
-      
-      // Clean up the user's socket ID mapping
       userSocketMap.delete(userIdToRemove);
     }
   });
