@@ -25,7 +25,6 @@ const io = new Server(httpServer, {
 let waitingPool = [];
 const userStatus = new Map();
 const userSocketMap = new Map();
-// NEW STATE: Map to track active two-way matches { userId1: userId2, userId2: userId1 }
 const matchRooms = new Map();
 
 // --- Helper Functions ---
@@ -62,15 +61,12 @@ const leaveChat = (userId) => {
     const partnerId = matchRooms.get(userId);
 
     if (partnerId) {
-        // 1. Notify the partner that the user left.
         const partnerSocketId = userSocketMap.get(partnerId);
         if (partnerSocketId) {
-            // FIX: Corrected event name to match frontend listener
             io.to(partnerSocketId).emit('chat:partnerLeft'); 
             console.log(`Notified partner ${partnerId} that ${userId} left.`);
         }
 
-        // 2. Clear statuses and room entry for both users
         userStatus.delete(userId);
         userStatus.delete(partnerId);
         matchRooms.delete(userId);
@@ -78,7 +74,6 @@ const leaveChat = (userId) => {
 
         console.log(`Chat ended between ${userId} and ${partnerId}.`);
     } else {
-        // If they were not in a match, ensure they are removed from the queue and have no status
         waitingPool = waitingPool.filter(id => id !== userId);
         userStatus.delete(userId);
     }
@@ -101,7 +96,6 @@ const findMatch = (userId, socketId) => {
       userStatus.set(matchedId1, 'BUSY');
       userStatus.set(matchedId2, 'BUSY');
       
-      // NEW: Establish the two-way match in the matchRooms map
       matchRooms.set(matchedId1, matchedId2);
       matchRooms.set(matchedId2, matchedId1);
 
@@ -109,7 +103,6 @@ const findMatch = (userId, socketId) => {
       const user1 = data.users.find(u => u.id === matchedId1);
       const user2 = data.users.find(u => u.id === matchedId2);
 
-      // FIX: Corrected event name to 'matched' to align with frontend listener
       io.to(userSocketMap.get(matchedId1)).emit('matched', { opponentId: matchedId2, opponentUsername: user2?.username || 'Stranger' });
       io.to(userSocketMap.get(matchedId2)).emit('matched', { opponentId: matchedId1, opponentUsername: user1?.username || 'Stranger' });
 
@@ -126,23 +119,33 @@ const findMatch = (userId, socketId) => {
 
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
+  
+  const userIdQuery = socket.handshake.query.userId;
+  // FIX: Ensure we get a single string ID from the query
+  const currentUserId = Array.isArray(userIdQuery) ? userIdQuery[0] : String(userIdQuery); 
 
-  // FIX APPLIED: Read userId from query params for user-socket mapping
-  const userId = String(socket.handshake.query.userId); 
-  if (userId && userId !== 'undefined') {
-      userSocketMap.set(userId, socket.id);
+  if (currentUserId && currentUserId !== 'undefined') {
+      userSocketMap.set(currentUserId, socket.id);
+      console.log(`User ID assigned: ${currentUserId}`);
   }
 
-  socket.on('requestMatch', (currentUserId) => {
+  socket.on('requestMatch', (clientUserId) => {
+    if (!currentUserId || currentUserId === 'undefined') {
+      console.error(`Match request blocked: Invalid currentUserId.`);
+      socket.emit('error', { message: 'Failed to establish user identity.' }); 
+      return; 
+    }
+    
     if (userStatus.get(currentUserId) === 'BUSY') {
         socket.emit('busy', { message: 'Already in a call.' });
     } else {
-        userSocketMap.set(currentUserId, socket.id);
+        userSocketMap.set(currentUserId, socket.id); 
         findMatch(currentUserId, socket.id);
     }
   });
 
-  socket.on('nextMatch', (currentUserId) => {
+  socket.on('nextMatch', (clientUserId) => {
+    if (!currentUserId || currentUserId === 'undefined') return;
     console.log(`User ${currentUserId} clicked next`);
 
     leaveChat(currentUserId);
@@ -152,19 +155,26 @@ io.on('connection', (socket) => {
     findMatch(currentUserId, socket.id);
   });
   
-  // NEW: Handler for when a user explicitly clicks a "Leave" button on the client
-  socket.on('chat:leave', (currentUserId) => {
+  socket.on('chat:leave', (clientUserId) => {
+    if (!currentUserId || currentUserId === 'undefined') return;
       console.log(`User ${currentUserId} explicitly left the chat.`);
       leaveChat(currentUserId);
   });
+  
+  socket.on('chat:message', (message) => {
+      const partnerId = matchRooms.get(message.senderId);
+      const partnerSocketId = userSocketMap.get(partnerId);
+      
+      if (partnerSocketId) {
+          io.to(partnerSocketId).emit('chat:message', message);
+      }
+  });
 
-  // START FIX: WebRTC Signaling Relay
   const relaySignal = (eventName, { senderId, payload }) => {
       const partnerId = matchRooms.get(senderId);
       if (partnerId) {
           const partnerSocketId = userSocketMap.get(partnerId);
           if (partnerSocketId) {
-              // Relay the signal to the partner's socket
               io.to(partnerSocketId).emit(eventName, { senderId, payload });
           } else {
               console.warn(`Partner socket not found for user ${partnerId}`);
@@ -172,24 +182,26 @@ io.on('connection', (socket) => {
       }
   };
 
-  // Listen for the three critical WebRTC signaling events
   socket.on('webrtc:offer', (data) => relaySignal('webrtc:offer', data));
   socket.on('webrtc:answer', (data) => relaySignal('webrtc:answer', data));
   socket.on('webrtc:ice_candidate', (data) => relaySignal('webrtc:ice_candidate', data));
-  // END FIX
+  
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
     
-    let userIdToRemove = null;
-    for (const [uid, sid] of userSocketMap.entries()) {
-      if (sid === socket.id) {
-        userIdToRemove = uid;
-        break;
-      }
+    let userIdToRemove = currentUserId; 
+    
+    if (!userIdToRemove || userIdToRemove === 'undefined') {
+        for (const [uid, sid] of userSocketMap.entries()) {
+            if (sid === socket.id) {
+                userIdToRemove = uid;
+                break;
+            }
+        }
     }
     
-    if (userIdToRemove) {
+    if (userIdToRemove && userIdToRemove !== 'undefined') {
       leaveChat(userIdToRemove);
       userSocketMap.delete(userIdToRemove);
     }
@@ -198,7 +210,6 @@ io.on('connection', (socket) => {
 
 // --- Express REST API Middleware and Routes ---
 
-// FIX APPLIED: Set explicit CORS options for robustness across all origins
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json());
 
@@ -312,7 +323,6 @@ app.post('/api/auth/logout', authenticate, (req, res) => {
   const data = readData();
   // @ts-ignore
   delete data.sessions[req.token];
-  // This line is the critical part for deleting the session from data.json
   writeData(data); 
   res.status(204).send();
 });
