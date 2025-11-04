@@ -3,7 +3,7 @@ import { io, Socket } from "socket.io-client";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "./ui/button";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "/";
+// REMOVED: const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "/";
 
 const VideoChat = () => {
   const { user } = useAuth();
@@ -20,7 +20,8 @@ const VideoChat = () => {
   useEffect(() => {
     if (!user) return;
 
-    const newSocket = io(SOCKET_URL);
+    // FIX: Use the relative path. The Vite proxy will forward this to the backend.
+    const newSocket = io("/");
     setSocket(newSocket);
 
     newSocket.on("connect", () => {

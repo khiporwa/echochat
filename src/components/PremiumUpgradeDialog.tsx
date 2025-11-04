@@ -18,7 +18,7 @@ interface PremiumUpgradeDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/";
 
 interface Plan {
   id: string;
