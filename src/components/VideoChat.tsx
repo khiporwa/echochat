@@ -171,17 +171,13 @@ const VideoChat = () => {
   useEffect(() => {
     if (!user) return;
 
-    // FIX: Explicitly set path and transports for stable connection through proxy
     const newSocket = io("/", {
-      path: '/socket.io/', // Ensure trailing slash for some proxies/servers
-      transports: ['websocket', 'polling'], // Prioritize websocket
       query: {
         userId: user.id,
       }
     });
     setSocket(newSocket);
 
-    // FIX: Add logging for connection failure/success
     newSocket.on("connect", () => {
       console.log("Socket Connected. ID:", newSocket.id);
       newSocket.emit("user:online", {
@@ -194,7 +190,7 @@ const VideoChat = () => {
       console.error("Socket Connection Error:", err.message);
       toast({
         title: "Connection Failed",
-        description: "Could not connect to the matchmaking server. Check the backend.",
+        description: `Could not connect to the matchmaking server. Check the backend status.`,
         variant: "destructive",
       });
     });
@@ -225,6 +221,7 @@ const VideoChat = () => {
 
       peerConnectionRef.current = createPeerConnection(newSocket);
       addLocalTracks(peerConnectionRef.current);
+      
     });
 
     // --- WebRTC Signaling Events ---
@@ -297,9 +294,8 @@ const VideoChat = () => {
     if (socket && user && status === "idle") {
       const stream = await startLocalStream();
       
-      if (stream) {
+      if (stream && socket?.connected) { // FIX: Ensure socket is connected before emitting
         setStatus("searching"); 
-        // FIX: The backend uses requestMatch with just the user ID string
         socket.emit("requestMatch", user.id); 
       }
     }
@@ -356,7 +352,8 @@ const VideoChat = () => {
   
   const renderMatchButton = () => {
     if (status === "idle") {
-      return <Button onClick={findMatch}>Find a Match</Button>;
+      // FIX: Disable button if socket is not connected (to prevent searching forever)
+      return <Button onClick={findMatch} disabled={!socket?.connected}>Find a Match</Button>;
     }
     if (status === "searching") {
         return <p className="text-lg font-semibold">Searching for a partner...</p>;

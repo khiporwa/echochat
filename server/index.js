@@ -82,11 +82,19 @@ const leaveChat = (userId) => {
 // --- Matchmaking Logic ---
 
 const findMatch = (userId, socketId) => {
-  if (!waitingPool.includes(userId)) {
-    waitingPool.push(userId);
-    userStatus.set(userId, 'WAITING');
-    userSocketMap.set(userId, socketId);
+  // FIX: Ensure the user is not already in the queue, regardless of redundant calls
+  if (userStatus.get(userId) === 'BUSY' || waitingPool.includes(userId)) {
+    // If user is already busy or waiting, don't re-add or attempt match yet.
+    if (userStatus.get(userId) !== 'BUSY') {
+        io.to(socketId).emit('waiting');
+    }
+    return false;
   }
+  
+  // User is idle, add to the pool
+  waitingPool.push(userId);
+  userStatus.set(userId, 'WAITING');
+  userSocketMap.set(userId, socketId); // Update socket just in case
 
   if (waitingPool.length >= 2) {
     const matchedId1 = waitingPool.shift();
@@ -102,9 +110,11 @@ const findMatch = (userId, socketId) => {
       const data = readData();
       const user1 = data.users.find(u => u.id === matchedId1);
       const user2 = data.users.find(u => u.id === matchedId2);
-
-      io.to(userSocketMap.get(matchedId1)).emit('matched', { opponentId: matchedId2, opponentUsername: user2?.username || 'Stranger' });
-      io.to(userSocketMap.get(matchedId2)).emit('matched', { opponentId: matchedId1, opponentUsername: user1?.username || 'Stranger' });
+      
+      // We no longer need to rely on ID comparison to determine the caller.
+      // We can designate the user whose ID was matched first (matchedId1) as the caller.
+      io.to(userSocketMap.get(matchedId1)).emit('matched', { opponentId: matchedId2, opponentUsername: user2?.username || 'Stranger', isCaller: true });
+      io.to(userSocketMap.get(matchedId2)).emit('matched', { opponentId: matchedId1, opponentUsername: user1?.username || 'Stranger', isCaller: false });
 
       console.log(`Match found: ${user1?.username || matchedId1} and ${user2?.username || matchedId2}`);
       return true;
@@ -121,7 +131,6 @@ io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
   
   const userIdQuery = socket.handshake.query.userId;
-  // FIX: Ensure we get a single string ID from the query
   const currentUserId = Array.isArray(userIdQuery) ? userIdQuery[0] : String(userIdQuery); 
 
   if (currentUserId && currentUserId !== 'undefined') {
@@ -136,12 +145,8 @@ io.on('connection', (socket) => {
       return; 
     }
     
-    if (userStatus.get(currentUserId) === 'BUSY') {
-        socket.emit('busy', { message: 'Already in a call.' });
-    } else {
-        userSocketMap.set(currentUserId, socket.id); 
-        findMatch(currentUserId, socket.id);
-    }
+    // Pass the matching responsibility to findMatch
+    findMatch(currentUserId, socket.id); 
   });
 
   socket.on('nextMatch', (clientUserId) => {
@@ -150,8 +155,7 @@ io.on('connection', (socket) => {
 
     leaveChat(currentUserId);
     
-    userStatus.set(currentUserId, 'WAITING'); 
-    userSocketMap.set(currentUserId, socket.id);
+    // User status is cleaned by leaveChat, now restart search
     findMatch(currentUserId, socket.id);
   });
   
@@ -208,7 +212,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// --- Express REST API Middleware and Routes ---
+// --- Express REST API Middleware and Routes (No Changes Below) ---
 
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json());

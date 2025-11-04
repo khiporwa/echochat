@@ -6,9 +6,10 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "0.0.0.0", // FIX: Expose server to local network (for phone testing)
+    host: "0.0.0.0", 
     port: 8080,
-    // START FIX: Add Proxy for API and Socket.io to backend on port 3001
+    // CRITICAL FIX: Ensure the proxy targets the WebSocket protocol (ws://)
+    // and explicitly sets `ws: true` for Socket.io traffic.
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
@@ -16,12 +17,11 @@ export default defineConfig(({ mode }) => ({
         secure: false,
       },
       '/socket.io': {
-        target: 'ws://localhost:3001',
-        ws: true, // Crucial for WebSockets
+        target: 'ws://localhost:3001', // MUST use ws:// or wss:// for websockets
+        ws: true, // Crucial for upgrading the connection
         changeOrigin: true,
       },
     },
-    // END FIX
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
