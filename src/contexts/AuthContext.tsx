@@ -21,8 +21,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Stable HTTP IP for network access
-const API_URL = import.meta.env.VITE_API_URL || "/api"; 
+// STRICT FIX: Use the full production URL from environment variables for deployments.
+// For local development, this will correctly fall back to your local server.
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001"; 
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
