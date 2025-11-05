@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import tsconfigPaths from "vite-tsconfig-paths"; // FIX: Import the tsconfig-paths plugin
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
@@ -20,15 +19,17 @@ export default defineConfig(({ mode }) => ({
       '/socket.io': {
         target: 'ws://localhost:3001', // MUST use ws:// or wss:// for websockets
         ws: true, // Crucial for upgrading the connection
+        changeOrigin: true,
       },
     },
   },
-  // FIX: Add the tsconfigPaths plugin. This will automatically handle the '@' alias.
-  plugins: [react(), tsconfigPaths(), mode === "development" && componentTagger()].filter(
+  // Removed faulty 'tsconfigPaths()' plugin here.
+  plugins: [react(), mode === "development" && componentTagger()].filter(
     Boolean
   ),
   resolve: {
     alias: {
+      // Retaining explicit alias as it correctly mirrors the tsconfig.json 'paths'
       "@": path.resolve(__dirname, "./src"),
     },
   },

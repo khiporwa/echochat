@@ -1,6 +1,20 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-type Theme = "monochrome" | "ocean" | "forest" | "sunset" | "purple" | "emerald" | "rose" | "monochrome-dark" | "ocean-dark" | "forest-dark" | "sunset-dark" | "purple-dark" | "emerald-dark" | "rose-dark";
+type Theme = 
+  | "monochrome" 
+  | "ocean" 
+  | "forest" 
+  | "sunset" 
+  | "purple" 
+  | "emerald" 
+  | "rose"
+  | "monochrome-dark"
+  | "ocean-dark"
+  | "forest-dark"
+  | "sunset-dark"
+  | "purple-dark"
+  | "emerald-dark"
+  | "rose-dark";
 
 interface ThemeContextType {
   theme: Theme;
@@ -9,16 +23,43 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const storedTheme = localStorage.getItem("app-theme");
-    return (storedTheme as Theme) || "monochrome-dark"; // Default theme
+const THEME_STORAGE_KEY = "echochat-theme";
+
+export const ThemeProvider = ({ children }: { children: ReactNode }) => {
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme;
+      return stored || "monochrome";
+    }
+    return "monochrome";
   });
 
+  const setTheme = (newTheme: Theme) => {
+    setThemeState(newTheme);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(THEME_STORAGE_KEY, newTheme);
+      document.documentElement.setAttribute("data-theme", newTheme);
+      
+      // Handle dark mode class
+      if (newTheme.endsWith("-dark")) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    }
+  };
+
   useEffect(() => {
-    document.documentElement.className = ""; // Clear existing classes
-    document.documentElement.classList.add(theme);
-    localStorage.setItem("app-theme", theme);
+    if (typeof window !== "undefined") {
+      document.documentElement.setAttribute("data-theme", theme);
+      
+      // Handle dark mode class
+      if (theme.endsWith("-dark")) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    }
   }, [theme]);
 
   return (
