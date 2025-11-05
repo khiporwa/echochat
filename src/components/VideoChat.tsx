@@ -403,23 +403,26 @@ const VideoChat = () => {
 
 
   return (
-    // Responsive main container: takes full screen height and provides padding.
-    <div className="flex flex-col items-center p-2 sm:p-4 w-full min-h-screen bg-background">
+    // STRICTLY RESPONSIVE:
+    // Mobile (default): A scrollable column.
+    // Desktop (lg:): A fixed, non-scrolling layout locked to the screen height.
+    <div className="flex flex-col items-center p-2 sm:p-4 w-full min-h-screen bg-background lg:h-screen lg:overflow-hidden">
         {/* 
           Responsive Grid Layout:
           - Mobile (default): A single column layout.
           - Desktop (lg:): A 3-column layout for the classic side-by-side view.
+          - On desktop, the grid takes up all available vertical space.
         */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full max-w-7xl mx-auto flex-grow">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full max-w-7xl mx-auto flex-grow lg:h-full">
             
             {/* Column 1: Videos & Controls. Takes full width on mobile, 2/3 on desktop. */}
-            <div className="lg:col-span-2 flex flex-col gap-4 justify-between">
+            <div className="lg:col-span-2 flex flex-col gap-4">
                 
                 {/* 
                   Remote video container is the main anchor for the layout.
                   The local video will be absolutely positioned relative to this container on all screen sizes.
                 */}
-                <div className="bg-black rounded-lg aspect-video relative overflow-hidden shadow-2xl">
+                <div className="bg-black rounded-lg aspect-video relative overflow-hidden shadow-2xl flex-grow">
                     <video 
                         ref={remoteVideoRef} 
                         autoPlay 
@@ -451,14 +454,18 @@ const VideoChat = () => {
                     </div>
                 </div>
 
-                {/* Match Buttons (moved here for better mobile layout) */}
-                <div className="py-4 lg:hidden">
+                {/* 
+                  Match Buttons:
+                  - Mobile (lg:hidden): Placed below the video.
+                  - Desktop (hidden lg:block): Placed below the video, within the fixed grid column.
+                */}
+                <div className="py-4 flex justify-center lg:py-0 lg:mt-4">
                     {renderMatchButton()}
                 </div>
             </div>
 
             {/* Column 2: Chat Box. Takes full width on mobile, 1/3 on desktop. */}
-            <div className="flex flex-col h-[75vh] lg:h-full border rounded-lg bg-card/80 backdrop-blur-sm shadow-card lg:col-span-1">
+            <div className="flex flex-col h-[75vh] lg:h-full border rounded-lg bg-card/80 backdrop-blur-sm shadow-card lg:col-span-1 lg:max-h-full">
                 <div className="p-4 border-b flex items-center gap-2">
                     <MessageSquare className="w-5 h-5 text-primary" />
                     <h3 className="font-semibold">Live Chat</h3>
@@ -521,11 +528,6 @@ const VideoChat = () => {
                     </p>
                 </form>
             </div>
-        </div>
-      
-        {/* Match Buttons (Desktop only view) */}
-        <div className="mt-6 hidden lg:block">
-            {renderMatchButton()}
         </div>
     </div>
   );
