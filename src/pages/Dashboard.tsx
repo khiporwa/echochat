@@ -26,27 +26,24 @@ const Dashboard = () => {
     navigate("/");
   };
 
-  // **START NEW CODE: Helper function to generate initials**
+  // FIX: The getInitials function was missing, causing a ReferenceError.
+  // This function is now defined here to resolve the error.
   const getInitials = (username: string | undefined): string => {
-    if (!username) return "JD"; // Default initials if user is null/undefined
+    if (!username) return "U";
 
     const parts = username.trim().split(/\s+/);
     
-    // Use the first letter of the first word
     const firstInitial = parts[0].charAt(0).toUpperCase();
 
-    // Use the first letter of the second word, if available
     if (parts.length > 1) {
       const secondInitial = parts[parts.length - 1].charAt(0).toUpperCase();
       return `${firstInitial}${secondInitial}`;
     }
 
-    // If only one word, just return its initial (or 'JD' for two letters if preferred)
     return firstInitial;
   };
 
   const userInitials = getInitials(user?.username);
-  // **END NEW CODE**
 
 
   return (

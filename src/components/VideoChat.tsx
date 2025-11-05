@@ -243,13 +243,15 @@ const VideoChat = () => {
       if (peerConnectionRef.current) {
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
         
-        // Ensure local stream is running and add tracks before creating an answer.
+        // STRICT FIX: The callee MUST add their own tracks after setting the remote
+        // description and before creating an answer. This is the key to two-way video.
         await startLocalStream();
         addLocalTracks(peerConnectionRef.current);
+
+        const answer = await peerConnectionRef.current!.createAnswer();
+        await peerConnectionRef.current!.setLocalDescription(answer);
+        sendSignal("webrtc:answer", { sdp: answer }); 
       }
-      const answer = await peerConnectionRef.current!.createAnswer();
-      await peerConnectionRef.current!.setLocalDescription(answer);
-      sendSignal("webrtc:answer", { sdp: answer }); 
     });
 
     socket.on("webrtc:answer", async ({ payload }) => {
@@ -467,66 +469,56 @@ const VideoChat = () => {
                   Added `lg:flex-grow` so the grow behavior only applies to the fixed-height desktop layout where it's needed.
                 */}
                 <div className="bg-black rounded-lg aspect-video relative overflow-hidden shadow-2xl lg:flex-grow">
-                    <video 
-                        ref={remoteVideoRef} 
-                        autoPlay 
-                        playsInline 
-                        className="w-full h-full object-cover rounded-lg" 
-                    />
-                    {/* Partner's username overlay */}
-                    <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-xs sm:text-sm">
-                        {partner ? partner.username : (status === 'connected' ? 'Connecting...' : 'Stranger')}
-                    </div>
-
                     {/* 
-                      Local video overlay, responsive sizing.
-                      - Mobile: Smaller size (w-1/3).
-                      - Desktop (md:): Larger size.
-                      This saves significant vertical space on mobile.
-                      FIX: Added group class for hover-based controls.
-                      FIX: Added bg-black to ensure the container is visible even when the video track is disabled.
+                      STRICT FIX: Add a wrapper div around the remote video. This wrapper will always match the
+                      dimensions of the visible video, providing a reliable anchor for the absolutely positioned
+                      local video preview, and preventing it from being hidden by `overflow-hidden` on large screens.
                     */}
-                    <div className="group absolute bottom-3 right-3 rounded-lg w-1/3 max-w-[150px] aspect-video overflow-hidden border-2 border-primary/50 shadow-lg sm:max-w-[180px] md:w-1/3 md:max-w-[240px] bg-black">
+                    <div className="w-full h-full relative">
                         <video 
-                            ref={localVideoRef} 
+                            ref={remoteVideoRef} 
                             autoPlay 
                             playsInline 
-                            muted 
-                            className={cn(
-                                "w-full h-full object-cover rounded-lg transition-opacity",
-                                isCameraEnabled ? "opacity-100" : "opacity-0"
-                            )}
+                            className="w-full h-full object-cover rounded-lg" 
                         />
-                        <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 py-0.5 rounded-md">
-                            {user?.username} (You)
+                        {/* Partner's username overlay */}
+                        <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-xs sm:text-sm">
+                            {partner ? partner.username : (status === 'connected' ? 'Connecting...' : 'Stranger')}
                         </div>
-                        {/* FIX: Media controls are now an overlay on the local video preview */}
-                        {localStream && (
-                            <div
+
+                        {/* Local video overlay, now positioned relative to the new wrapper */}
+                        <div className="group absolute bottom-3 right-3 rounded-lg w-1/3 max-w-[150px] aspect-video overflow-hidden border-2 border-primary/50 shadow-lg sm:max-w-[180px] md:w-1/3 md:max-w-[240px] bg-black">
+                            <video 
+                                ref={localVideoRef} 
+                                autoPlay 
+                                playsInline 
+                                muted 
                                 className={cn(
-                                    "absolute inset-0 flex items-center justify-center gap-2 bg-black/40 transition-opacity",
-                                    // If camera is on, show on hover. If camera is off, always show.
-                                    isCameraEnabled
-                                        ? "opacity-0 group-hover:opacity-100"
-                                        : "opacity-100"
+                                    "w-full h-full object-cover rounded-lg transition-opacity",
+                                    isCameraEnabled ? "opacity-100" : "opacity-0"
                                 )}
-                            >
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70" onClick={toggleCamera} title={isCameraEnabled ? "Turn off camera" : "Turn on camera"}>
-                                    {isCameraEnabled ? (
-                                        <Video className="w-4 h-4 text-white" />
-                                    ) : (
-                                        <VideoOff className="w-4 h-4 text-white" />
-                                    )}
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70" onClick={toggleMicrophone} title={isMicrophoneEnabled ? "Mute microphone" : "Unmute microphone"}>
-                                    {isMicrophoneEnabled ? (
-                                        <Mic className="w-4 h-4 text-white" />
-                                    ) : (
-                                        <MicOff className="w-4 h-4 text-white" />
-                                    )}
-                                </Button>
+                            />
+                            <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 py-0.5 rounded-md">
+                                {user?.username} (You)
                             </div>
-                        )}
+                            {localStream && (
+                                <div
+                                    className={cn(
+                                        "absolute inset-0 flex items-center justify-center gap-2 bg-black/40 transition-opacity",
+                                        isCameraEnabled
+                                            ? "opacity-0 group-hover:opacity-100"
+                                            : "opacity-100"
+                                    )}
+                                >
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70" onClick={toggleCamera} title={isCameraEnabled ? "Turn off camera" : "Turn on camera"}>
+                                        {isCameraEnabled ? <Video className="w-4 h-4 text-white" /> : <VideoOff className="w-4 h-4 text-white" />}
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70" onClick={toggleMicrophone} title={isMicrophoneEnabled ? "Mute microphone" : "Unmute microphone"}>
+                                        {isMicrophoneEnabled ? <Mic className="w-4 h-4 text-white" /> : <MicOff className="w-4 h-4 text-white" />}
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
