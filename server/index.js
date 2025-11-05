@@ -366,6 +366,21 @@ app.get('/api/premium/plans', (req, res) => {
     ]);
 });
 
+// RAILWAY DEPLOYMENT: Serve static files from the 'dist' directory in production
+if (process.env.NODE_ENV === 'production') {
+  const buildPath = join(__dirname, '..', 'dist');
+  app.use(express.static(buildPath));
+
+  // For any other request, serve the index.html file for client-side routing
+  app.get('*', (req, res) => {
+    // Ignore API routes
+    if (req.originalUrl.startsWith('/api')) {
+      return res.status(404).send('API route not found');
+    }
+    res.sendFile(join(buildPath, 'index.html'));
+  });
+}
+
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
