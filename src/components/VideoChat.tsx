@@ -42,6 +42,8 @@ const VideoChat = () => {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   // FIX: Use state to manage the local stream to trigger effects reliably.
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  // STRICT FIX: Use state to manage the remote stream to eliminate race conditions.
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
   // Auto-scroll to the bottom when messages update
   useEffect(() => {
@@ -108,10 +110,8 @@ const VideoChat = () => {
     };
 
     pc.ontrack = (event) => {
-      // Ensure srcObject is set to the remote stream when a track arrives
-      if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== event.streams[0]) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-      }
+      // STRICT FIX: Set the remote stream in state to be reliably handled by a useEffect.
+      setRemoteStream(event.streams[0]);
     };
     
     // FIX: Mandatory for robust offer/answer flow (initiates the offer when tracks are added)
@@ -152,9 +152,7 @@ const VideoChat = () => {
     }
 
     // Clear Remote Video element
-    if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = null;
-    }
+    setRemoteStream(null);
     
     // Reset UI State
     setPartner(null);
@@ -182,6 +180,13 @@ const VideoChat = () => {
       localVideoRef.current.srcObject = localStream;
     } else if (!localStream && localVideoRef.current) {
       localVideoRef.current.srcObject = null;
+    }
+
+    // STRICT FIX: This effect reliably attaches the remote stream to its video element.
+    if (remoteStream && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    } else if (!remoteStream && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
     }
 
     // FIX 3: Use the socket instance from the hook. It's already connecting.
@@ -317,7 +322,7 @@ const VideoChat = () => {
       socket.off("chat:partnerLeft");
       socket.off("chat:message");
     };
-  }, [user, socket, isConnected, partner, toast, resetChat, createPeerConnection, addLocalTracks, sendSignal, startLocalStream, localStream]);
+  }, [user, socket, isConnected, partner, toast, resetChat, createPeerConnection, addLocalTracks, sendSignal, startLocalStream, localStream, remoteStream]);
 
   
   const findMatch = async () => {
@@ -453,22 +458,22 @@ const VideoChat = () => {
           Responsive Grid Layout:
           - Mobile (default): A single column layout.
           - Desktop (lg:): A 3-column layout for the classic side-by-side view.
-          - On desktop, the grid takes up all available vertical space.
+          - On desktop, the grid's height is explicitly calculated to fit within the viewport's padding.
         */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full max-w-7xl mx-auto flex-grow lg:h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full max-w-7xl mx-auto flex-grow lg:h-[calc(100vh-2rem)] lg:py-4">
             
             {/* Column 1: Videos & Controls. Takes full width on mobile, 2/3 on desktop. */}
-            <div className="lg:col-span-2 flex flex-col gap-4">
+            <div className="lg:col-span-2 flex flex-col gap-4 justify-between">
                 
                 {/* 
                   Remote video container is the main anchor for the layout.
                   The local video will be absolutely positioned relative to this container on all screen sizes.
                 */}
                 {/* 
-                  FIX: Removed `flex-grow` from the default classes. It was causing the container to have zero height on mobile.
-                  Added `lg:flex-grow` so the grow behavior only applies to the fixed-height desktop layout where it's needed.
+                  STRICT FIX: The video container's height is now calculated to be 100% of its parent column
+                  minus the exact height of the button controls area below it (which is 3rem for the button + 1rem gap = 4rem).
                 */}
-                <div className="bg-black rounded-lg aspect-video relative overflow-hidden shadow-2xl lg:flex-grow">
+                <div className="bg-black rounded-lg relative overflow-hidden shadow-2xl aspect-video lg:aspect-auto lg:h-[calc(100%-4rem)]">
                     {/* 
                       STRICT FIX: Add a wrapper div around the remote video. This wrapper will always match the
                       dimensions of the visible video, providing a reliable anchor for the absolutely positioned
@@ -527,13 +532,13 @@ const VideoChat = () => {
                   - Mobile (lg:hidden): Placed below the video.
                   - Desktop (hidden lg:block): Placed below the video, within the fixed grid column.
                 */}
-                <div className="py-4 flex justify-center lg:py-0 lg:mt-4">
+                <div className="py-4 flex justify-center lg:py-0 h-12 items-center flex-shrink-0">
                     {renderMatchButton()}
                 </div>
             </div>
 
             {/* Column 2: Chat Box. Takes full width on mobile, 1/3 on desktop. */}
-            <div className="flex flex-col h-[75vh] lg:h-full border rounded-lg bg-card/80 backdrop-blur-sm shadow-card lg:col-span-1 lg:max-h-full">
+            <div className="flex flex-col h-[75vh] lg:h-full border rounded-lg bg-card/80 backdrop-blur-sm shadow-card lg:col-span-1">
                 <div className="p-4 border-b flex items-center gap-2">
                     <MessageSquare className="w-5 h-5 text-primary" />
                     <h3 className="font-semibold">Live Chat</h3>
