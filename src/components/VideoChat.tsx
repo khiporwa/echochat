@@ -403,43 +403,62 @@ const VideoChat = () => {
 
 
   return (
-    <div className="flex flex-col items-center p-4">
-        {/* Layout: 2-column (2/3 + 1/3) with videos and chat */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-6xl">
+    // Responsive main container: takes full screen height and provides padding.
+    <div className="flex flex-col items-center p-2 sm:p-4 w-full min-h-screen bg-background">
+        {/* 
+          Responsive Grid Layout:
+          - Mobile (default): A single column layout.
+          - Desktop (lg:): A 3-column layout for the classic side-by-side view.
+        */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full max-w-7xl mx-auto flex-grow">
             
-            {/* Column 1 (2/3 width): Videos (Main + Local) */}
-            <div className="md:col-span-2 flex flex-col gap-4">
+            {/* Column 1: Videos & Controls. Takes full width on mobile, 2/3 on desktop. */}
+            <div className="lg:col-span-2 flex flex-col gap-4 justify-between">
                 
-                {/* 1. Large Remote Video (Aspect-ratio is key for proper size) */}
-                <div className="bg-black rounded-lg aspect-video relative overflow-hidden">
+                {/* 
+                  Remote video container is the main anchor for the layout.
+                  The local video will be absolutely positioned relative to this container on all screen sizes.
+                */}
+                <div className="bg-black rounded-lg aspect-video relative overflow-hidden shadow-2xl">
                     <video 
                         ref={remoteVideoRef} 
                         autoPlay 
                         playsInline 
                         className="w-full h-full object-cover rounded-lg" 
                     />
-                    <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded">
+                    {/* Partner's username overlay */}
+                    <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-xs sm:text-sm">
                         {partner ? partner.username : (status === 'connected' ? 'Connecting...' : 'Stranger')}
                     </div>
-                </div>
-                
-                {/* 2. Small Local Video (Fixed position below main video) */}
-                <div className="bg-black rounded-lg h-32 w-48 relative overflow-hidden border-2 border-primary/50 shadow-lg self-start">
-                    <video 
-                        ref={localVideoRef} 
-                        autoPlay 
-                        playsInline 
-                        muted 
-                        className="w-full h-full object-cover rounded-lg" 
-                    />
-                    <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 py-0.5 rounded">
-                        {user?.username} (You)
+
+                    {/* 
+                      Local video overlay, responsive sizing.
+                      - Mobile: Smaller size (w-1/3).
+                      - Desktop (md:): Larger size.
+                      This saves significant vertical space on mobile.
+                    */}
+                    <div className="absolute bottom-3 right-3 bg-black rounded-lg w-1/3 max-w-[150px] aspect-video overflow-hidden border-2 border-primary/50 shadow-lg sm:max-w-[180px] md:w-1/3 md:max-w-[240px]">
+                        <video 
+                            ref={localVideoRef} 
+                            autoPlay 
+                            playsInline 
+                            muted 
+                            className="w-full h-full object-cover rounded-lg" 
+                        />
+                        <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 py-0.5 rounded">
+                            {user?.username} (You)
+                        </div>
                     </div>
+                </div>
+
+                {/* Match Buttons (moved here for better mobile layout) */}
+                <div className="py-4 lg:hidden">
+                    {renderMatchButton()}
                 </div>
             </div>
 
-            {/* Column 2 (1/3 width): Chat Box */}
-            <div className="flex flex-col h-[500px] md:h-full border rounded-lg bg-card/80 backdrop-blur-sm shadow-card md:col-span-1">
+            {/* Column 2: Chat Box. Takes full width on mobile, 1/3 on desktop. */}
+            <div className="flex flex-col h-[75vh] lg:h-full border rounded-lg bg-card/80 backdrop-blur-sm shadow-card lg:col-span-1">
                 <div className="p-4 border-b flex items-center gap-2">
                     <MessageSquare className="w-5 h-5 text-primary" />
                     <h3 className="font-semibold">Live Chat</h3>
@@ -504,8 +523,8 @@ const VideoChat = () => {
             </div>
         </div>
       
-        {/* Match Buttons (below videos/chat) */}
-        <div className="mt-6">
+        {/* Match Buttons (Desktop only view) */}
+        <div className="mt-6 hidden lg:block">
             {renderMatchButton()}
         </div>
     </div>

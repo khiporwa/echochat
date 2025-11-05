@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Video, Shield, Globe, Zap, ChevronRight } from "lucide-react";
+import { Video, Shield, Globe, Zap, ChevronRight, Menu, X } from "lucide-react";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { useAuth } from "@/contexts/AuthContext";
 import heroImage from "@/assets/mainLogo.png";
@@ -8,6 +9,7 @@ import heroImage from "@/assets/mainLogo.png";
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user } = useAuth();
 
   const handleStartChat = () => {
@@ -21,46 +23,67 @@ const Landing = () => {
   return (
     <div className="min-h-screen bg-gradient-hero text-foreground">
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Video className="w-8 h-8 text-primary" />
-            <span className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+            <span className="text-xl sm:text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
               EchoChat
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          {/* Desktop Nav */}
+          <div className="hidden md:flex items-center gap-4">
             <ThemeSelector />
             <Link to="/auth">
               <Button variant="ghost">Log In</Button>
             </Link>
             <Link to="/auth">
-              <Button className="bg-gradient-primary hover:opacity-90 transition-opacity">
+              <Button className="bg-gradient-primary hover:opacity-90 transition-opacity font-semibold">
                 Sign Up
               </Button>
             </Link>
           </div>
+          {/* Mobile Nav Button */}
+          <div className="md:hidden flex items-center gap-2">
+            <ThemeSelector />
+            <Button variant="ghost" size="icon" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </Button>
+          </div>
         </div>
+        {/* Mobile Menu */}
+        {isMenuOpen && (
+          <div className="md:hidden bg-background/95 border-b">
+            <div className="container mx-auto px-4 py-4 flex flex-col gap-4">
+              <Link to="/auth" className="w-full" onClick={() => setIsMenuOpen(false)}>
+                <Button variant="ghost" className="w-full">Log In</Button>
+              </Link>
+              <Link to="/auth" className="w-full" onClick={() => setIsMenuOpen(false)}>
+                <Button className="w-full bg-gradient-primary hover:opacity-90 transition-opacity font-semibold">Sign Up</Button>
+              </Link>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 px-4 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-glow opacity-50" />
         <div className="container mx-auto relative z-10">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8">
+          <div className="grid lg:grid-cols-2 gap-12 items-center text-center lg:text-left">
+            <div className="space-y-6 sm:space-y-8">
               <div className="inline-block">
                 <span className="px-4 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-sm font-semibold">
                   🎉 Now Live Globally
                 </span>
               </div>
-              <h1 className="text-5xl lg:text-7xl font-black leading-tight tracking-tight">
+              <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black leading-tight tracking-tight">
                 Connect Instantly,
                 <span className="block bg-gradient-primary bg-clip-text text-transparent">
                   Share Moments
                 </span>
               </h1>
-              <p className="text-xl text-muted-foreground max-w-xl">
+              <p className="text-lg sm:text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0">
                 Experience random video chats with people around the world. Safe, anonymous, and instant connections at your fingertips.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
@@ -72,12 +95,12 @@ const Landing = () => {
                   Start Chat Now
                   <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
-                <Button size="lg" variant="outline" className="text-lg px-10 py-7 border-2 border-border hover:border-primary/50 hover:bg-primary/5 transition-all font-semibold">
+                <Button size="lg" variant="outline" className="text-lg px-10 py-7 border-2 hover:border-primary/50 hover:bg-primary/5 transition-all font-semibold">
                   Learn More
                 </Button>
               </div>
             </div>
-            <div className="relative">
+            <div className="relative hidden lg:block">
               <div className="absolute inset-0 bg-gradient-primary rounded-3xl blur-3xl opacity-20" />
               <img
                 src={heroImage}
@@ -93,12 +116,12 @@ const Landing = () => {
       <section className="py-20 px-4 bg-surface/30">
         <div className="container mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl lg:text-5xl font-black mb-4 tracking-tight">Why Choose EchoChat?</h2>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4 tracking-tight">Why Choose EchoChat?</h2>
             <p className="text-muted-foreground text-lg lg:text-xl max-w-2xl mx-auto font-medium">
               The most advanced random video chat platform with cutting-edge features
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="p-8 rounded-2xl bg-card/80 backdrop-blur-sm border-2 border-border hover:border-primary/50 transition-all hover:shadow-elevated group">
               <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-6 transition-transform shadow-glow">
                 <Zap className="w-8 h-8 text-white" />
@@ -134,7 +157,7 @@ const Landing = () => {
       <section className="py-20 px-4">
         <div className="container mx-auto">
           <div className="relative rounded-3xl bg-gradient-primary p-12 lg:p-20 text-center overflow-hidden">
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjEiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-20" />
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-20" />
             <div className="relative z-10 max-w-3xl mx-auto">
               <h2 className="text-4xl lg:text-5xl font-black text-white mb-6 tracking-tight">
                 Ready to Start Connecting?
@@ -159,7 +182,7 @@ const Landing = () => {
       {/* Footer */}
       <footer className="border-t border-border/50 py-12 px-4 bg-surface/30">
         <div className="container mx-auto">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8 text-center md:text-left">
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Video className="w-6 h-6 text-primary" />

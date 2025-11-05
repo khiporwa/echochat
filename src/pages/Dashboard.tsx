@@ -76,20 +76,20 @@ const Dashboard = () => {
 
       <div className="container mx-auto px-4 pt-32 pb-20">
         <div className="max-w-5xl mx-auto space-y-8">
-          {/* User Profile Card */}
+          {/* User Profile Card - Responsive */}
           <Card className="bg-card/80 backdrop-blur-sm border-2 border-border shadow-elevated">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-6">
-                <Avatar className="w-24 h-24 border-4 border-primary/20 shadow-glow">
+              <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
+                <Avatar className="w-20 h-20 sm:w-24 sm:h-24 border-4 border-primary/20 shadow-glow">
                   <AvatarImage src="" />
                   {/* **MODIFIED CODE: Dynamic Initials** */}
-                  <AvatarFallback className="bg-gradient-primary text-white text-3xl font-bold">
+                  <AvatarFallback className="bg-gradient-primary text-white text-2xl sm:text-3xl font-bold">
                     {userInitials}
                   </AvatarFallback>
                   {/* **END MODIFIED CODE** */}
                 </Avatar>
                 <div className="flex-1">
-                  <h2 className="text-3xl font-black mb-1 tracking-tight">Welcome back, {user?.username || "User"}!</h2>
+                  <h2 className="text-2xl sm:text-3xl font-black mb-1 tracking-tight">Welcome back, {user?.username || "User"}!</h2>
                   <p className="text-muted-foreground font-medium text-lg">Ready to meet someone new?</p>
                   {user?.isPremium && (
                     <Badge variant="secondary" className="bg-accent/10 text-accent border-2 border-accent/30 font-semibold mt-2">
@@ -108,19 +108,19 @@ const Dashboard = () => {
                     </Badge>
                   </div>
                 </div>
-                <Link to="/profile">
+                <Link to="/profile" className="mt-4 sm:mt-0">
                   <Button variant="outline" className="border-2 font-semibold hover:border-primary/50 hover:bg-primary/5">Edit Profile</Button>
                 </Link>
               </div>
             </CardContent>
           </Card>
 
-          {/* Main CTA */}
+          {/* Main CTA - Responsive */}
           <div className="relative rounded-3xl bg-gradient-primary p-16 text-center overflow-hidden shadow-elevated">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjEiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-20" />
             <div className="relative z-10">
               <Sparkles className="w-14 h-14 text-white mx-auto mb-6 animate-pulse" />
-              <h3 className="text-4xl font-black text-white mb-4 tracking-tight">
+              <h3 className="text-3xl sm:text-4xl font-black text-white mb-4 tracking-tight">
                 Start Your Next Connection
               </h3>
               <p className="text-white/95 text-lg mb-10 max-w-xl mx-auto font-medium">
@@ -129,7 +129,7 @@ const Dashboard = () => {
               <Button
                 size="lg"
                 variant="secondary"
-                className="bg-white text-primary hover:bg-white/95 hover:scale-105 transition-all text-xl px-14 py-8 font-bold shadow-elevated"
+                className="bg-white text-primary hover:bg-white/95 hover:scale-105 transition-all text-lg sm:text-xl px-10 sm:px-14 py-6 sm:py-8 font-bold shadow-elevated"
                 onClick={handleStartChat}
               >
                 <Video className="w-6 h-6 mr-3" />
@@ -138,8 +138,8 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid md:grid-cols-3 gap-6">
+          {/* Stats Cards - Responsive */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card className="bg-card/80 backdrop-blur-sm border-2 border-border hover:border-primary/40 transition-all shadow-card hover:shadow-elevated">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
@@ -148,7 +148,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground font-semibold">Total Connections</p>
-                    <p className="text-3xl font-black tracking-tight">127</p>
+                    <p className="text-2xl sm:text-3xl font-black tracking-tight">127</p>
                   </div>
                 </div>
               </CardContent>
@@ -162,7 +162,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground font-semibold">Time Chatting</p>
-                    <p className="text-3xl font-black tracking-tight">24h</p>
+                    <p className="text-2xl sm:text-3xl font-black tracking-tight">24h</p>
                   </div>
                 </div>
               </CardContent>
@@ -176,7 +176,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground font-semibold">Active Now</p>
-                    <p className="text-3xl font-black tracking-tight">2,847</p>
+                    <p className="text-2xl sm:text-3xl font-black tracking-tight">2,847</p>
                   </div>
                 </div>
               </CardContent>

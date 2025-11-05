@@ -36,11 +36,11 @@ const ProfileSettings = () => {
   return (
     <div className="min-h-screen bg-gradient-hero">
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/dashboard" className="flex items-center gap-2">
             <ArrowLeft className="w-5 h-5" />
-            <Video className="w-8 h-8 text-primary" />
+            <Video className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
             <span className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
               EchoChat
             </span>
@@ -51,10 +51,10 @@ const ProfileSettings = () => {
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 pt-32 pb-20">
+      <div className="container mx-auto px-4 pt-24 sm:pt-32 pb-20">
         <div className="max-w-2xl mx-auto space-y-6">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Profile Settings</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold mb-2">Profile Settings</h1>
             <p className="text-muted-foreground">Manage your account and preferences</p>
           </div>
 
@@ -64,10 +64,10 @@ const ProfileSettings = () => {
               <CardTitle>Profile Picture</CardTitle>
               <CardDescription>Update your profile picture to personalize your account</CardDescription>
             </CardHeader>
-            <CardContent className="flex items-center gap-6">
-              <Avatar className="w-24 h-24 border-2 border-primary">
+            <CardContent className="flex flex-col sm:flex-row items-center gap-6">
+              <Avatar className="w-20 h-20 sm:w-24 sm:h-24 border-2 border-primary">
                 <AvatarImage src="" />
-                <AvatarFallback className="bg-gradient-primary text-white text-3xl">
+                <AvatarFallback className="bg-gradient-primary text-white text-2xl sm:text-3xl">
                   JD
                 </AvatarFallback>
               </Avatar>

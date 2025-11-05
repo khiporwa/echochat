@@ -77,7 +77,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-gradient-glow opacity-30" />
       
       <div className="w-full max-w-md relative z-10">
