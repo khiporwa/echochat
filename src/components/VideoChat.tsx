@@ -312,6 +312,20 @@ const VideoChat = () => {
     }
   };
 
+  const handleCancelSearch = () => {
+    if (socket && user && status === "searching") {
+      // Notify the server that the user has canceled the search
+      socket.emit("match:cancel_search");
+
+      // Immediately update the UI back to the idle state
+      setStatus("idle");
+      toast({
+        title: "Search Canceled",
+        description: "You are no longer searching for a match.",
+      });
+    }
+  };
+
   const handleNext = () => {
     if (socket && user && status === "connected") {
       socket.emit("nextMatch", user.id); 
@@ -367,7 +381,12 @@ const VideoChat = () => {
       return <Button onClick={findMatch} disabled={!isConnected}>Find a Match</Button>;
     }
     if (status === "searching") {
-        return <p className="text-lg font-semibold">Searching for a partner...</p>;
+        return (
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-lg font-semibold animate-pulse">Searching for a partner...</p>
+            <Button variant="outline" onClick={handleCancelSearch}>Cancel</Button>
+          </div>
+        );
     }
     if (status === "connected") {
       return (

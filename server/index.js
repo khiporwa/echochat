@@ -149,6 +149,16 @@ io.on('connection', (socket) => {
     findMatch(currentUserId, socket.id); 
   });
 
+  socket.on('match:cancel_search', () => {
+    if (!currentUserId || currentUserId === 'undefined') return;
+
+    const index = waitingPool.findIndex(id => id === currentUserId);
+    if (index !== -1) {
+      waitingPool.splice(index, 1);
+      console.log(`User ${currentUserId} canceled search and was removed from queue. Queue size: ${waitingPool.length}`);
+    }
+  });
+
   socket.on('nextMatch', (clientUserId) => {
     if (!currentUserId || currentUserId === 'undefined') return;
     console.log(`User ${currentUserId} clicked next`);
