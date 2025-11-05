@@ -2,10 +2,9 @@ import { useEffect, useState, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "@/contexts/AuthContext";
 
-// FIX: Use a relative URL. This instructs socket.io-client to connect to the
-// same host that served the web page. This works for localhost, local network IPs,
-// and production domains without needing to change the code.
-const SOCKET_URL = "";
+// RAILWAY DEPLOYMENT: Use the production URL from environment variables,
+// otherwise default to the local server for development.
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export const useSocket = () => {
   const { user } = useAuth();
