@@ -2,10 +2,10 @@ import { useEffect, useState, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Connect to the same host the page is served from, so that Vite can proxy the request.
-// The path option ensures it goes to the correct endpoint.
-const SOCKET_URL =
-  process.env.NODE_ENV === "production" ? "" : "http://localhost:8080";
+// FIX: Use a relative URL. This instructs socket.io-client to connect to the
+// same host that served the web page. This works for localhost, local network IPs,
+// and production domains without needing to change the code.
+const SOCKET_URL = "";
 
 export const useSocket = () => {
   const { user } = useAuth();
