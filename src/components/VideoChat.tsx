@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { Button } from "./ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "./ui/input";
-import { MessageSquare, Send } from "lucide-react";
+import { MessageSquare, Send, Video, VideoOff, Mic, MicOff } from "lucide-react";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useSocket } from "@/hooks/useSocket"; // FIX 1: Import the centralized socket hook
@@ -29,6 +29,8 @@ const VideoChat = () => {
   const { toast } = useToast();
   const { socket, isConnected } = useSocket(); // FIX 2: Use the state from the hook
   const [status, setStatus] = useState("idle"); // idle, searching, connected
+  const [isCameraEnabled, setIsCameraEnabled] = useState(true);
+  const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(true);
   const [partner, setPartner] = useState<{ username: string; gender: string } | null>(null);
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -79,6 +81,8 @@ const VideoChat = () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); // Attempt to get stream
       setLocalStream(stream); // Set state to trigger the useEffect for attaching the stream
+      setIsCameraEnabled(true);
+      setIsMicrophoneEnabled(true);
       return stream;
     } catch (error) {
       console.error("Error accessing media devices.", error);
@@ -163,6 +167,8 @@ const VideoChat = () => {
       if (localStream) {
           localStream.getTracks().forEach(track => track.stop());
           setLocalStream(null);
+          setIsCameraEnabled(true); // Reset for next call
+          setIsMicrophoneEnabled(true); // Reset for next call
       }
     }
   }, []);
@@ -273,11 +279,11 @@ const VideoChat = () => {
     const handlePartnerLeft = ({ reason }: { reason: 'leave' | 'next' | 'disconnect' }) => {
         const partnerName = partner?.username || "Your partner";
         
-        // If the partner explicitly clicked "Leave", auto-search for the current user.
-        if (reason === 'leave') {
+        // If the partner explicitly clicked "Leave" or "Next", auto-search for the current user.
+        if (reason === 'leave' || reason === 'next') {
             toast({
-                title: "Partner Left",
-                description: `${partnerName} left the chat. Finding a new match for you...`,
+                title: "Finding New Match",
+                description: `${partnerName} has left. Searching for a new partner...`,
             });
             resetChat(false); // Reset chat but don't go to idle
             setStatus("searching"); // Immediately go into searching state
@@ -286,7 +292,7 @@ const VideoChat = () => {
             // For disconnect or 'next', just end the chat and go to idle.
             toast({
                 title: "Chat Ended 💔",
-                description: `${partnerName} has disconnected or skipped the chat.`,
+                description: `${partnerName} has disconnected.`,
                 variant: "destructive",
                 duration: 2000, 
             });
@@ -387,6 +393,27 @@ const VideoChat = () => {
     setCurrentMessage("");
   };
 
+  const toggleCamera = () => {
+    if (localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsCameraEnabled(videoTrack.enabled);
+      }
+    }
+  };
+
+  const toggleMicrophone = () => {
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMicrophoneEnabled(audioTrack.enabled);
+      }
+    }
+  };
+
+
   
   const renderMatchButton = () => {
     if (status === "idle") {
@@ -403,7 +430,21 @@ const VideoChat = () => {
     }
     if (status === "connected") {
       return (
-        <div className="flex gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+            <Button variant="outline" size="icon" onClick={toggleCamera} title={isCameraEnabled ? "Turn off camera" : "Turn on camera"}>
+                {isCameraEnabled ? (
+                    <Video className="w-5 h-5" />
+                ) : (
+                    <VideoOff className="w-5 h-5 text-destructive" />
+                )}
+            </Button>
+            <Button variant="outline" size="icon" onClick={toggleMicrophone} title={isMicrophoneEnabled ? "Mute microphone" : "Unmute microphone"}>
+                {isMicrophoneEnabled ? (
+                    <Mic className="w-5 h-5" />
+                ) : (
+                    <MicOff className="w-5 h-5 text-destructive" />
+                )}
+            </Button>
             <Button onClick={handleNext}>Next</Button>
             <Button variant="destructive" onClick={handleLeave}>
                 Leave
