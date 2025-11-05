@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { io, Socket } from "socket.io-client";
+import { Socket } from "socket.io-client"; // FIX: Import the Socket type
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "./ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -7,6 +7,7 @@ import { Input } from "./ui/input";
 import { MessageSquare, Send } from "lucide-react";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useSocket } from "@/hooks/useSocket"; // FIX 1: Import the centralized socket hook
 
 interface ChatMessage {
   id: number;
@@ -16,10 +17,17 @@ interface ChatMessage {
   timestamp: number;
 }
 
+// FIX 1: Define the matched event payload interface correctly
+interface MatchedPayload {
+    opponentId: string;
+    opponentUsername: string;
+    isCaller: boolean; // Crucial flag from server
+}
+
 const VideoChat = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const { socket, isConnected } = useSocket(); // FIX 2: Use the state from the hook
   const [status, setStatus] = useState("idle"); // idle, searching, connected
   const [partner, setPartner] = useState<{ username: string; gender: string } | null>(null);
   
@@ -71,7 +79,7 @@ const VideoChat = () => {
     }
     
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); // Attempt to get stream
       localStreamRef.current = stream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream; // Assign stream to video element
@@ -79,12 +87,12 @@ const VideoChat = () => {
       return stream;
     } catch (error) {
       console.error("Error accessing media devices.", error);
+      // Show a non-blocking warning toast instead of a destructive one
       toast({
-        title: "Media Access Failed",
-        description: "Could not access your camera and microphone. Please check permissions.",
-        variant: "destructive",
+        title: "Camera/Mic Not Available",
+        description: "Permissions denied. You can still chat, but without video.",
       });
-      return null;
+      return null; // Return null but don't block the process
     }
   }, [toast]);
   
@@ -110,6 +118,7 @@ const VideoChat = () => {
     // FIX: Mandatory for robust offer/answer flow (initiates the offer when tracks are added)
     pc.onnegotiationneeded = async () => {
         // Check for stable state before creating offer
+        // This is primarily for the caller, after addLocalTracks.
         if (pc.signalingState === 'stable' && peerConnectionRef.current === pc) {
             try {
                 const offer = await pc.createOffer();
@@ -169,36 +178,21 @@ const VideoChat = () => {
   
   // Initialize Socket and Peer Connection
   useEffect(() => {
-    if (!user) return;
+    // FIX 3: Use the socket instance from the hook. It's already connecting.
+    if (!user || !socket) return;
 
-    const newSocket = io("/", {
-      query: {
-        userId: user.id,
-      }
-    });
-    setSocket(newSocket);
-
-    newSocket.on("connect", () => {
-      console.log("Socket Connected. ID:", newSocket.id);
-      newSocket.emit("user:online", {
+    // Emit user online status once connected
+    if (isConnected) {
+      socket.emit("user:online", {
         id: user.id,
         username: user.username,
       });
-    });
-    
-    newSocket.on("connect_error", (err) => {
-      console.error("Socket Connection Error:", err.message);
-      toast({
-        title: "Connection Failed",
-        description: `Could not connect to the matchmaking server. Check the backend status.`,
-        variant: "destructive",
-      });
-    });
+    }
 
     
     // --- Server-Initiated Match Events ---
 
-    newSocket.on("waiting", () => {
+    socket.on("waiting", () => {
         setStatus("searching");
         toast({
             title: "Searching...",
@@ -207,7 +201,10 @@ const VideoChat = () => {
         });
     });
 
-    newSocket.on("matched", async ({ opponentId, opponentUsername }) => {
+    // FIX 2 & 3: Use the 'isCaller' flag to decide who initiates the offer
+    socket.on("matched", async (payload: MatchedPayload) => {
+      const { opponentId, opponentUsername, isCaller } = payload;
+        
       setStatus("connected");
       setPartner({ username: opponentUsername, gender: "unknown" }); 
 
@@ -217,22 +214,28 @@ const VideoChat = () => {
           duration: 2000, 
       });
       
-      const isCaller = user.id > opponentId;
-
-      peerConnectionRef.current = createPeerConnection(newSocket);
-      addLocalTracks(peerConnectionRef.current);
+      // Create Peer Connection
+      peerConnectionRef.current = createPeerConnection(socket);
       
+      // Only the caller immediately adds tracks to trigger the 'negotiationneeded' event and send the offer
+      if (isCaller) {
+          console.log("I am the caller. Initiating WebRTC offer.");
+          addLocalTracks(peerConnectionRef.current);
+      } else {
+          console.log("I am the callee. Waiting for WebRTC offer.");
+      }
     });
 
     // --- WebRTC Signaling Events ---
 
-    newSocket.on("webrtc:offer", async ({ payload }) => {
+    socket.on("webrtc:offer", async ({ payload }) => {
       setStatus("connected"); 
       
+      // Callee receives offer. Must set up RTCPeerConnection, add tracks, and create answer.
       if (!peerConnectionRef.current) {
         await startLocalStream(); 
-        peerConnectionRef.current = createPeerConnection(newSocket);
-        addLocalTracks(peerConnectionRef.current);
+        peerConnectionRef.current = createPeerConnection(socket);
+        addLocalTracks(peerConnectionRef.current); // Callee MUST add tracks here to send stream back
       }
       
       await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(payload.sdp));
@@ -241,9 +244,14 @@ const VideoChat = () => {
       sendSignal("webrtc:answer", { sdp: answer }); 
     });
 
-    newSocket.on("webrtc:answer", async ({ payload }) => {
+    socket.on("webrtc:answer", async ({ payload }) => {
       if (peerConnectionRef.current && peerConnectionRef.current.signalingState !== 'closed') {
         try {
+          // FIX 4: Caller receives answer. Add tracks if they haven't been added yet (for robustness)
+          if (peerConnectionRef.current.getSenders().length === 0) {
+              addLocalTracks(peerConnectionRef.current);
+          }
+          
           if (!peerConnectionRef.current.remoteDescription || peerConnectionRef.current.remoteDescription.type !== payload.sdp.type) {
             await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
           }
@@ -254,7 +262,7 @@ const VideoChat = () => {
     });
 
 
-    newSocket.on("webrtc:ice_candidate", ({ payload }) => {
+    socket.on("webrtc:ice_candidate", ({ payload }) => {
       if (peerConnectionRef.current && payload.candidate) {
         peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
       }
@@ -273,28 +281,31 @@ const VideoChat = () => {
         resetChat(true); 
     }
 
-    newSocket.on("chat:partnerLeft", handlePartnerLeft); 
-    newSocket.on("chat:message", (message: ChatMessage) => {
+    socket.on("chat:partnerLeft", handlePartnerLeft); 
+    socket.on("chat:message", (message: ChatMessage) => {
         setMessages(prev => [...prev, message]);
     });
     
     return () => {
-      newSocket.disconnect();
-      if (localStreamRef.current) {
-          localStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (peerConnectionRef.current) {
-          peerConnectionRef.current.close();
-      }
+      // The useSocket hook handles disconnection. We just need to clean up listeners.
+      socket.off("waiting");
+      socket.off("matched");
+      socket.off("webrtc:offer");
+      socket.off("webrtc:answer");
+      socket.off("webrtc:ice_candidate");
+      socket.off("chat:partnerLeft");
+      socket.off("chat:message");
     };
-  }, [user, partner, toast, resetChat, createPeerConnection, addLocalTracks, sendSignal, startLocalStream]);
+  }, [user, socket, isConnected, partner, toast, resetChat, createPeerConnection, addLocalTracks, sendSignal, startLocalStream]);
 
   
   const findMatch = async () => {
     if (socket && user && status === "idle") {
-      const stream = await startLocalStream();
+      // Attempt to start the local stream, but don't block if it fails.
+      await startLocalStream();
       
-      if (stream && socket?.connected) { // FIX: Ensure socket is connected before emitting
+      // Proceed to find a match as long as the socket is connected.
+      if (socket.connected) {
         setStatus("searching"); 
         socket.emit("requestMatch", user.id); 
       }
@@ -353,7 +364,7 @@ const VideoChat = () => {
   const renderMatchButton = () => {
     if (status === "idle") {
       // FIX: Disable button if socket is not connected (to prevent searching forever)
-      return <Button onClick={findMatch} disabled={!socket?.connected}>Find a Match</Button>;
+      return <Button onClick={findMatch} disabled={!isConnected}>Find a Match</Button>;
     }
     if (status === "searching") {
         return <p className="text-lg font-semibold">Searching for a partner...</p>;
