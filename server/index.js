@@ -57,14 +57,14 @@ const generateToken = () => {
  * Helper function to handle a user leaving or disconnecting from a chat.
  * @param {string} userId - The ID of the user who is leaving.
  */
-const leaveChat = (userId) => {
+const leaveChat = (userId, reason = 'disconnect') => {
     const partnerId = matchRooms.get(userId);
 
     if (partnerId) {
         const partnerSocketId = userSocketMap.get(partnerId);
         if (partnerSocketId) {
-            io.to(partnerSocketId).emit('chat:partnerLeft'); 
-            console.log(`Notified partner ${partnerId} that ${userId} left.`);
+            io.to(partnerSocketId).emit('chat:partnerLeft', { reason }); 
+            console.log(`Notified partner ${partnerId} that ${userId} left. Reason: ${reason}`);
         }
 
         userStatus.delete(userId);
@@ -162,8 +162,8 @@ io.on('connection', (socket) => {
   socket.on('nextMatch', (clientUserId) => {
     if (!currentUserId || currentUserId === 'undefined') return;
     console.log(`User ${currentUserId} clicked next`);
-
-    leaveChat(currentUserId);
+    // Pass 'next' as the reason for leaving
+    leaveChat(currentUserId, 'next');
     
     // User status is cleaned by leaveChat, now restart search
     findMatch(currentUserId, socket.id);
@@ -172,7 +172,7 @@ io.on('connection', (socket) => {
   socket.on('chat:leave', (clientUserId) => {
     if (!currentUserId || currentUserId === 'undefined') return;
       console.log(`User ${currentUserId} explicitly left the chat.`);
-      leaveChat(currentUserId);
+      leaveChat(currentUserId, 'leave');
   });
   
   socket.on('chat:message', (message) => {

@@ -38,7 +38,8 @@ const VideoChat = () => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
+  // FIX: Use state to manage the local stream to trigger effects reliably.
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
   // Auto-scroll to the bottom when messages update
   useEffect(() => {
@@ -58,32 +59,26 @@ const VideoChat = () => {
   
   // FIX: Helper to add local tracks to the PeerConnection
   const addLocalTracks = useCallback((pc: RTCPeerConnection) => {
-    if (!localStreamRef.current || !pc) return; 
+    if (!localStream || !pc) return; 
     
-    localStreamRef.current.getTracks().forEach((track) => {
+    localStream.getTracks().forEach((track) => {
         const existingSender = pc.getSenders().find(s => s.track === track);
 
         if (!existingSender) {
-             pc.addTrack(track, localStreamRef.current!);
+             pc.addTrack(track, localStream);
         }
     });
   }, []);
 
   // FIX: Centralized logic for starting stream, ensuring local video is visible
   const startLocalStream = useCallback(async () => {
-    if (localStreamRef.current) {
-        if (localVideoRef.current && localVideoRef.current.srcObject !== localStreamRef.current) {
-            localVideoRef.current.srcObject = localStreamRef.current;
-        }
-        return localStreamRef.current;
+    if (localStream) {
+        return localStream;
     }
     
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); // Attempt to get stream
-      localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream; // Assign stream to video element
-      }
+      setLocalStream(stream); // Set state to trigger the useEffect for attaching the stream
       return stream;
     } catch (error) {
       console.error("Error accessing media devices.", error);
@@ -165,12 +160,9 @@ const VideoChat = () => {
       setStatus("idle");
       
       // Stop Local Stream and clear local video element
-      if (localStreamRef.current) {
-          localStreamRef.current.getTracks().forEach(track => track.stop());
-          localStreamRef.current = null;
-      }
-      if (localVideoRef.current) {
-          localVideoRef.current.srcObject = null;
+      if (localStream) {
+          localStream.getTracks().forEach(track => track.stop());
+          setLocalStream(null);
       }
     }
   }, []);
@@ -178,6 +170,14 @@ const VideoChat = () => {
   
   // Initialize Socket and Peer Connection
   useEffect(() => {
+    // FIX: This effect reliably attaches the local stream to the video element
+    // whenever the stream becomes available or the video element mounts.
+    if (localStream && localVideoRef.current) {
+      localVideoRef.current.srcObject = localStream;
+    } else if (!localStream && localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+
     // FIX 3: Use the socket instance from the hook. It's already connecting.
     if (!user || !socket) return;
 
@@ -270,17 +270,28 @@ const VideoChat = () => {
       }
     });
     
-    const handlePartnerLeft = () => {
+    const handlePartnerLeft = ({ reason }: { reason: 'leave' | 'next' | 'disconnect' }) => {
         const partnerName = partner?.username || "Your partner";
         
-        toast({
-            title: "Chat Ended 💔",
-            description: `${partnerName} has disconnected or skipped the chat.`,
-            variant: "destructive",
-            duration: 2000, 
-        });
-        
-        resetChat(true); 
+        // If the partner explicitly clicked "Leave", auto-search for the current user.
+        if (reason === 'leave') {
+            toast({
+                title: "Partner Left",
+                description: `${partnerName} left the chat. Finding a new match for you...`,
+            });
+            resetChat(false); // Reset chat but don't go to idle
+            setStatus("searching"); // Immediately go into searching state
+            socket?.emit("requestMatch", user?.id); // Request a new match
+        } else {
+            // For disconnect or 'next', just end the chat and go to idle.
+            toast({
+                title: "Chat Ended 💔",
+                description: `${partnerName} has disconnected or skipped the chat.`,
+                variant: "destructive",
+                duration: 2000, 
+            });
+            resetChat(true); // Reset chat and go to idle
+        }
     }
 
     socket.on("chat:partnerLeft", handlePartnerLeft); 
@@ -298,7 +309,7 @@ const VideoChat = () => {
       socket.off("chat:partnerLeft");
       socket.off("chat:message");
     };
-  }, [user, socket, isConnected, partner, toast, resetChat, createPeerConnection, addLocalTracks, sendSignal, startLocalStream]);
+  }, [user, socket, isConnected, partner, toast, resetChat, createPeerConnection, addLocalTracks, sendSignal, startLocalStream, localStream]);
 
   
   const findMatch = async () => {
