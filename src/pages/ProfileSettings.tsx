@@ -8,10 +8,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Video, Upload, X, Plus, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { ThemeSelector } from "@/components/ThemeSelector";
 
 const ProfileSettings = () => {
   const { toast } = useToast();
+  const { user } = useAuth(); // Get the authenticated user
   const [interests, setInterests] = useState(["Art", "Gaming", "Music"]);
   const [newInterest, setNewInterest] = useState("");
 
@@ -21,6 +23,23 @@ const ProfileSettings = () => {
       description: "Your profile has been successfully updated.",
     });
   };
+
+  const getInitials = (username: string | undefined): string => {
+    if (!username) return "U";
+
+    const parts = username.trim().split(/\s+/);
+    
+    const firstInitial = parts[0].charAt(0).toUpperCase();
+
+    if (parts.length > 1) {
+      const secondInitial = parts[parts.length - 1].charAt(0).toUpperCase();
+      return `${firstInitial}${secondInitial}`;
+    }
+
+    return firstInitial;
+  };
+
+  const userInitials = getInitials(user?.username);
 
   const addInterest = () => {
     if (newInterest.trim() && interests.length < 10) {
@@ -67,8 +86,8 @@ const ProfileSettings = () => {
             <CardContent className="flex flex-col sm:flex-row items-center gap-6">
               <Avatar className="w-20 h-20 sm:w-24 sm:h-24 border-2 border-primary">
                 <AvatarImage src="" />
-                <AvatarFallback className="bg-gradient-primary text-white text-2xl sm:text-3xl">
-                  JD
+                <AvatarFallback className="bg-gradient-primary text-white text-2xl sm:text-3xl font-bold">
+                  {userInitials}
                 </AvatarFallback>
               </Avatar>
               <div className="space-y-2">
@@ -92,11 +111,11 @@ const ProfileSettings = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
-                <Input id="username" defaultValue="johndoe" />
+                <Input id="username" defaultValue={user?.username || ""} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" defaultValue="john@example.com" />
+                <Input id="email" type="email" defaultValue={user?.email || ""} readOnly />
               </div>
             </CardContent>
           </Card>

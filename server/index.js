@@ -82,12 +82,10 @@ const leaveChat = (userId, reason = 'disconnect') => {
 // --- Matchmaking Logic ---
 
 const findMatch = (userId, socketId) => {
-  // FIX: Ensure the user is not already in the queue, regardless of redundant calls
-  if (userStatus.get(userId) === 'BUSY' || waitingPool.includes(userId)) {
-    // If user is already busy or waiting, don't re-add or attempt match yet.
-    if (userStatus.get(userId) !== 'BUSY') {
-        io.to(socketId).emit('waiting');
-    }
+  // Ensure the user is not already in the queue or in a match
+  if (userStatus.get(userId) === 'BUSY' || userStatus.get(userId) === 'WAITING') {
+    console.log(`User ${userId} is already ${userStatus.get(userId)}. Ignoring match request.`);
+    io.to(socketId).emit('waiting');
     return false;
   }
   

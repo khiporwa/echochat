@@ -37,7 +37,7 @@ const Dashboard = () => {
 
     // Use the first letter of the second word, if available
     if (parts.length > 1) {
-      const secondInitial = parts[1].charAt(0).toUpperCase();
+      const secondInitial = parts[parts.length - 1].charAt(0).toUpperCase();
       return `${firstInitial}${secondInitial}`;
     }
 
