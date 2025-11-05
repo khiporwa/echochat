@@ -430,21 +430,7 @@ const VideoChat = () => {
     }
     if (status === "connected") {
       return (
-        <div className="flex items-center gap-2 sm:gap-4">
-            <Button variant="outline" size="icon" onClick={toggleCamera} title={isCameraEnabled ? "Turn off camera" : "Turn on camera"}>
-                {isCameraEnabled ? (
-                    <Video className="w-5 h-5" />
-                ) : (
-                    <VideoOff className="w-5 h-5 text-destructive" />
-                )}
-            </Button>
-            <Button variant="outline" size="icon" onClick={toggleMicrophone} title={isMicrophoneEnabled ? "Mute microphone" : "Unmute microphone"}>
-                {isMicrophoneEnabled ? (
-                    <Mic className="w-5 h-5" />
-                ) : (
-                    <MicOff className="w-5 h-5 text-destructive" />
-                )}
-            </Button>
+        <div className="flex items-center gap-4">
             <Button onClick={handleNext}>Next</Button>
             <Button variant="destructive" onClick={handleLeave}>
                 Leave
@@ -497,18 +483,50 @@ const VideoChat = () => {
                       - Mobile: Smaller size (w-1/3).
                       - Desktop (md:): Larger size.
                       This saves significant vertical space on mobile.
+                      FIX: Added group class for hover-based controls.
+                      FIX: Added bg-black to ensure the container is visible even when the video track is disabled.
                     */}
-                    <div className="absolute bottom-3 right-3 bg-black rounded-lg w-1/3 max-w-[150px] aspect-video overflow-hidden border-2 border-primary/50 shadow-lg sm:max-w-[180px] md:w-1/3 md:max-w-[240px]">
+                    <div className="group absolute bottom-3 right-3 rounded-lg w-1/3 max-w-[150px] aspect-video overflow-hidden border-2 border-primary/50 shadow-lg sm:max-w-[180px] md:w-1/3 md:max-w-[240px] bg-black">
                         <video 
                             ref={localVideoRef} 
                             autoPlay 
                             playsInline 
                             muted 
-                            className="w-full h-full object-cover rounded-lg" 
+                            className={cn(
+                                "w-full h-full object-cover rounded-lg transition-opacity",
+                                isCameraEnabled ? "opacity-100" : "opacity-0"
+                            )}
                         />
-                        <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 py-0.5 rounded">
+                        <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 py-0.5 rounded-md">
                             {user?.username} (You)
                         </div>
+                        {/* FIX: Media controls are now an overlay on the local video preview */}
+                        {localStream && (
+                            <div
+                                className={cn(
+                                    "absolute inset-0 flex items-center justify-center gap-2 bg-black/40 transition-opacity",
+                                    // If camera is on, show on hover. If camera is off, always show.
+                                    isCameraEnabled
+                                        ? "opacity-0 group-hover:opacity-100"
+                                        : "opacity-100"
+                                )}
+                            >
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70" onClick={toggleCamera} title={isCameraEnabled ? "Turn off camera" : "Turn on camera"}>
+                                    {isCameraEnabled ? (
+                                        <Video className="w-4 h-4 text-white" />
+                                    ) : (
+                                        <VideoOff className="w-4 h-4 text-white" />
+                                    )}
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70" onClick={toggleMicrophone} title={isMicrophoneEnabled ? "Mute microphone" : "Unmute microphone"}>
+                                    {isMicrophoneEnabled ? (
+                                        <Mic className="w-4 h-4 text-white" />
+                                    ) : (
+                                        <MicOff className="w-4 h-4 text-white" />
+                                    )}
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 </div>
 
