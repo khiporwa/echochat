@@ -231,14 +231,16 @@ const VideoChat = () => {
     socket.on("webrtc:offer", async ({ payload }) => {
       setStatus("connected"); 
       
-      // Callee receives offer. Must set up RTCPeerConnection, add tracks, and create answer.
-      if (!peerConnectionRef.current) {
-        await startLocalStream(); 
-        peerConnectionRef.current = createPeerConnection(socket);
-        addLocalTracks(peerConnectionRef.current); // Callee MUST add tracks here to send stream back
+      // FIX: This logic must run for the callee every time an offer is received.
+      // The previous `if (!peerConnectionRef.current)` check was incorrect because the
+      // peer connection is already created during the 'matched' event.
+      if (peerConnectionRef.current) {
+        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        
+        // Ensure local stream is running and add tracks before creating an answer.
+        await startLocalStream();
+        addLocalTracks(peerConnectionRef.current);
       }
-      
-      await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(payload.sdp));
       const answer = await peerConnectionRef.current!.createAnswer();
       await peerConnectionRef.current!.setLocalDescription(answer);
       sendSignal("webrtc:answer", { sdp: answer }); 
@@ -422,7 +424,11 @@ const VideoChat = () => {
                   Remote video container is the main anchor for the layout.
                   The local video will be absolutely positioned relative to this container on all screen sizes.
                 */}
-                <div className="bg-black rounded-lg aspect-video relative overflow-hidden shadow-2xl flex-grow">
+                {/* 
+                  FIX: Removed `flex-grow` from the default classes. It was causing the container to have zero height on mobile.
+                  Added `lg:flex-grow` so the grow behavior only applies to the fixed-height desktop layout where it's needed.
+                */}
+                <div className="bg-black rounded-lg aspect-video relative overflow-hidden shadow-2xl lg:flex-grow">
                     <video 
                         ref={remoteVideoRef} 
                         autoPlay 
